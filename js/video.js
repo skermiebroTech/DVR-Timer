@@ -97,6 +97,9 @@ const VideoPlayer = (() => {
     video.addEventListener('loadedmetadata', () => {
       if (durationEl) durationEl.textContent = formatTime(video.duration);
       scrubBar.max = SCRUB_STEPS;
+      // Nudge to a tiny offset so the browser decodes and paints the first frame.
+      // Without this many browsers leave the video element black at currentTime=0.
+      video.currentTime = 0.001;
       updateTimeDisplays();
     });
     video.addEventListener('play',  updatePlayPauseIcon);
