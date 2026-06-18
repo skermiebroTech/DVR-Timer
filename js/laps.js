@@ -1,0 +1,245 @@
+/* ============================================================
+   laps.js — Lap data model and table rendering
+   ============================================================ */
+
+const Laps = (() => {
+  let laps = [];         // [{ id, startTime, endTime }]
+  let selectedId = null;
+  let nextId = 1;
+  let groupSize = 3;
+
+  // ── Helpers ──────────────────────────────────────────────
+
+  function formatTime(seconds) {
+    if (seconds == null || isNaN(seconds)) return '—';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    const ms = Math.round((s % 1) * 1000);
+    const sInt = Math.floor(s);
+    return `${m}:${String(sInt).padStart(2,'0')}.${String(ms).padStart(3,'0')}`;
+  }
+
+  function lapDuration(lap) {
+    if (lap.startTime == null || lap.endTime == null) return null;
+    return lap.endTime - lap.startTime;
+  }
+
+  // Find the fastest group of `n` consecutive laps (by total duration).
+  // Returns the starting index of the best group, or -1 if not enough complete laps.
+  function findFastestGroup(n) {
+    const complete = laps.filter(l => l.startTime != null && l.endTime != null);
+    if (complete.length < n) return { startIndex: -1, indices: [] };
+
+    let bestTotal = Infinity;
+    let bestStart = 0;
+    for (let i = 0; i <= complete.length - n; i++) {
+      let total = 0;
+      for (let j = i; j < i + n; j++) total += lapDuration(complete[j]);
+      if (total < bestTotal) { bestTotal = total; bestStart = i; }
+    }
+
+    const bestGroup = complete.slice(bestStart, bestStart + n);
+    const bestIds = new Set(bestGroup.map(l => l.id));
+    return { total: bestTotal, ids: bestIds };
+  }
+
+  // ── Public API ────────────────────────────────────────────
+
+  function init(savedLaps) {
+    laps = savedLaps || [];
+    nextId = laps.length ? Math.max(...laps.map(l => l.id)) + 1 : 1;
+    render();
+  }
+
+  // Add a new lap. If the last lap has no end time, set its end time first.
+  // Then create a new lap with startTime = currentTime.
+  function addLap(currentTime) {
+    const last = laps[laps.length - 1];
+    if (last && last.endTime == null) {
+      last.endTime = currentTime;
+    }
+    laps.push({ id: nextId++, startTime: currentTime, endTime: null });
+    Storage.save(laps);
+    render();
+  }
+
+  function updateLap(id, startTime, endTime) {
+    const lap = laps.find(l => l.id === id);
+    if (!lap) return;
+    lap.startTime = startTime;
+    lap.endTime = endTime;
+    Storage.save(laps);
+    render();
+  }
+
+  function deleteLap(id) {
+    const idx = laps.findIndex(l => l.id === id);
+    if (idx === -1) return;
+
+    // Re-number: if deleting a lap that has an end, we don't need to stitch—
+    // just remove it. Visual lap numbers recompute from order.
+    laps.splice(idx, 1);
+    if (selectedId === id) selectedId = null;
+    Storage.save(laps);
+    render();
+  }
+
+  function selectLap(id) {
+    selectedId = selectedId === id ? null : id;
+    render();
+  }
+
+  function getSelected() {
+    return laps.find(l => l.id === selectedId) || null;
+  }
+
+  function deleteSelected() {
+    if (selectedId != null) deleteLap(selectedId);
+  }
+
+  function setGroupSize(n) {
+    groupSize = Math.max(1, n);
+    render();
+  }
+
+  function setLaps(newLaps) {
+    laps = newLaps;
+    nextId = laps.length ? Math.max(...laps.map(l => l.id)) + 1 : 1;
+    selectedId = null;
+    Storage.save(laps);
+    render();
+  }
+
+  function getLaps() { return laps; }
+
+  // ── Render ────────────────────────────────────────────────
+
+  function render() {
+    const tbody = document.getElementById('lap-tbody');
+    const table = document.getElementById('lap-table');
+    const noMsg = document.getElementById('no-laps-msg');
+    const countEl = document.getElementById('lap-count');
+    const summaryEl = document.getElementById('fastest-summary');
+
+    if (!tbody) return;
+
+    countEl.textContent = laps.length;
+
+    if (laps.length === 0) {
+      table.classList.add('hidden');
+      noMsg.classList.remove('hidden');
+      summaryEl.textContent = '—';
+      return;
+    }
+
+    table.classList.remove('hidden');
+    noMsg.classList.add('hidden');
+
+    const { ids: fastIds, total: fastTotal } = findFastestGroup(groupSize);
+
+    // Update fastest summary
+    if (fastIds && fastIds.size > 0) {
+      summaryEl.textContent = `Fastest ${groupSize}: ${formatTime(fastTotal)}`;
+    } else {
+      summaryEl.textContent = `Need ${groupSize}+ complete laps`;
+    }
+
+    tbody.innerHTML = '';
+    laps.forEach((lap, i) => {
+      const dur = lapDuration(lap);
+      const tr = document.createElement('tr');
+      tr.className = 'lap-row' +
+        (lap.id === selectedId ? ' selected' : '') +
+        (fastIds && fastIds.has(lap.id) ? ' fastest' : '');
+      tr.dataset.id = lap.id;
+
+      tr.innerHTML = `
+        <td class="lap-num">${i + 1}</td>
+        <td>
+          <button class="btn-lap-action seek" data-seek="${lap.startTime}" title="Jump to start">
+            ${formatTime(lap.startTime)}
+          </button>
+        </td>
+        <td>
+          ${lap.endTime != null
+            ? `<button class="btn-lap-action seek" data-seek="${lap.endTime}" title="Jump to end">${formatTime(lap.endTime)}</button>`
+            : '<span style="color:var(--yellow)">In progress…</span>'}
+        </td>
+        <td>${dur != null ? formatTime(dur) : '—'}</td>
+        <td class="lap-actions">
+          <button class="btn-lap-action edit" data-id="${lap.id}" title="Edit lap">Edit</button>
+          <button class="btn-lap-action delete" data-id="${lap.id}" title="Delete lap">Del</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // Wire up row/button events
+    tbody.querySelectorAll('.lap-row').forEach(row => {
+      row.addEventListener('click', (e) => {
+        // Don't select row when clicking action buttons
+        if (e.target.closest('.btn-lap-action')) return;
+        selectLap(Number(row.dataset.id));
+      });
+    });
+
+    tbody.querySelectorAll('.btn-lap-action.seek').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const t = parseFloat(btn.dataset.seek);
+        if (!isNaN(t)) VideoPlayer.seekTo(t);
+      });
+    });
+
+    tbody.querySelectorAll('.btn-lap-action.edit').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openEditModal(Number(btn.dataset.id));
+      });
+    });
+
+    tbody.querySelectorAll('.btn-lap-action.delete').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteLap(Number(btn.dataset.id));
+      });
+    });
+  }
+
+  // ── Edit modal ────────────────────────────────────────────
+
+  function openEditModal(id) {
+    const lap = laps.find(l => l.id === id);
+    if (!lap) return;
+
+    const modal = document.getElementById('edit-modal');
+    const startInput = document.getElementById('edit-start');
+    const endInput = document.getElementById('edit-end');
+
+    startInput.value = lap.startTime != null ? lap.startTime.toFixed(3) : '';
+    endInput.value   = lap.endTime   != null ? lap.endTime.toFixed(3)   : '';
+
+    modal.classList.remove('hidden');
+
+    const saveBtn   = document.getElementById('edit-save');
+    const cancelBtn = document.getElementById('edit-cancel');
+
+    const doSave = () => {
+      const s = parseFloat(startInput.value);
+      const e = parseFloat(endInput.value);
+      updateLap(id, isNaN(s) ? null : s, isNaN(e) ? null : e);
+      close();
+    };
+    const close = () => {
+      modal.classList.add('hidden');
+      saveBtn.removeEventListener('click', doSave);
+      cancelBtn.removeEventListener('click', close);
+    };
+
+    saveBtn.addEventListener('click', doSave);
+    cancelBtn.addEventListener('click', close);
+  }
+
+  return { init, addLap, updateLap, deleteLap, selectLap, getSelected,
+           deleteSelected, setGroupSize, setLaps, getLaps, formatTime };
+})();

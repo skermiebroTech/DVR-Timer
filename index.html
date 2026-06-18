@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DVR Race Timer</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="app-header">
+      <h1>DVR Race Timer</h1>
+      <div class="header-actions">
+        <button id="btn-import" class="btn btn-secondary" title="Import JSON lap data">Import JSON</button>
+        <button id="btn-export-json" class="btn btn-secondary" title="Export laps as JSON">Export JSON</button>
+        <button id="btn-export-csv" class="btn btn-secondary" title="Export laps as CSV">Export CSV</button>
+        <button id="btn-clear-session" class="btn btn-danger" title="Clear all lap data">Clear Session</button>
+      </div>
+    </header>
+
+    <main class="main-layout">
+      <!-- Left: Video Panel -->
+      <section class="video-panel">
+        <!-- File upload (shown when no video loaded) -->
+        <div id="upload-area" class="upload-area">
+          <div class="upload-inner">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m8 13 4-4 4 4"/><path d="M12 9v8"/></svg>
+            <p>Drop a video file here or <label for="file-input" class="file-label">browse</label></p>
+            <p class="upload-hint">Supported: MP4, WebM, MKV, MOV, AVI<br>TS files may require browser support</p>
+            <input type="file" id="file-input" accept="video/mp4,video/webm,video/x-matroska,video/quicktime,video/x-msvideo,video/mp2t,.mp4,.webm,.mkv,.mov,.avi,.ts,.m2ts" />
+          </div>
+        </div>
+
+        <!-- Video container (shown after file loaded) -->
+        <div id="video-container" class="video-container hidden">
+          <div class="video-wrapper">
+            <video id="main-video" preload="metadata"></video>
+            <!-- Race time overlay -->
+            <div id="time-overlay" class="time-overlay hidden">
+              <span id="overlay-time">0:00.000</span>
+            </div>
+          </div>
+
+          <!-- Video toolbar -->
+          <div class="video-toolbar">
+            <button id="btn-change-video" class="btn btn-sm btn-secondary">Change Video</button>
+            <label class="toggle-label">
+              <input type="checkbox" id="toggle-overlay" />
+              <span>Race Timer Overlay</span>
+            </label>
+          </div>
+
+          <!-- Scrub bar -->
+          <div class="scrub-row">
+            <span id="current-time-display" class="time-display">0:00.000</span>
+            <input type="range" id="scrub-bar" class="scrub-bar" min="0" max="1000" value="0" step="1" />
+            <span id="duration-display" class="time-display">0:00.000</span>
+          </div>
+
+          <!-- Playback controls -->
+          <div class="controls-row">
+            <div class="playback-controls">
+              <button id="btn-prev-frame" class="btn btn-icon" title="Previous frame (,)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+              </button>
+              <button id="btn-seek-back" class="btn btn-icon" title="Seek back 5s (←)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6 8.5 6V6l-8.5 6z"/></svg>
+              </button>
+              <button id="btn-play-pause" class="btn btn-icon btn-play" title="Play/Pause (Space)">
+                <svg id="icon-play" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                <svg id="icon-pause" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="hidden"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+              </button>
+              <button id="btn-seek-forward" class="btn btn-icon" title="Seek forward 5s (→)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
+              </button>
+              <button id="btn-next-frame" class="btn btn-icon" title="Next frame (.)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+              </button>
+            </div>
+
+            <div class="speed-controls">
+              <label class="speed-label">Speed:</label>
+              <select id="playback-speed" class="select-sm">
+                <option value="0.25">0.25×</option>
+                <option value="0.5">0.5×</option>
+                <option value="1" selected>1×</option>
+                <option value="1.5">1.5×</option>
+                <option value="2">2×</option>
+              </select>
+            </div>
+
+            <button id="btn-add-lap" class="btn btn-primary" title="Add lap at current time (L)">
+              + Add Lap (L)
+            </button>
+          </div>
+
+          <!-- Keyboard shortcut hint -->
+          <div class="shortcut-hint">
+            <kbd>Space</kbd> Play/Pause &nbsp;
+            <kbd>←</kbd><kbd>→</kbd> Seek 5s &nbsp;
+            <kbd>,</kbd><kbd>.</kbd> Frame step &nbsp;
+            <kbd>L</kbd> Add lap &nbsp;
+            <kbd>Del</kbd> Delete selected lap
+          </div>
+        </div>
+      </section>
+
+      <!-- Right: Laps Panel -->
+      <section class="laps-panel">
+        <!-- Fastest group settings -->
+        <div class="fastest-settings card">
+          <h3>Fastest Consecutive Laps</h3>
+          <div class="fastest-row">
+            <label for="group-size">Group size:</label>
+            <input type="number" id="group-size" class="input-sm" min="1" max="99" value="3" />
+            <span id="fastest-summary" class="fastest-summary">—</span>
+          </div>
+        </div>
+
+        <!-- Lap table -->
+        <div class="lap-table-wrapper card">
+          <div class="lap-table-header">
+            <h3>Laps <span id="lap-count" class="lap-count">0</span></h3>
+          </div>
+
+          <div id="no-laps-msg" class="no-laps-msg">
+            No laps yet. Load a video and press <kbd>L</kbd> or click <strong>+ Add Lap</strong> to mark lap start/end times.
+          </div>
+
+          <table id="lap-table" class="lap-table hidden">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Duration</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="lap-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Edit lap modal -->
+  <div id="edit-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <h3>Edit Lap</h3>
+      <div class="modal-field">
+        <label>Start time (seconds)</label>
+        <input type="number" id="edit-start" step="0.001" min="0" />
+      </div>
+      <div class="modal-field">
+        <label>End time (seconds)</label>
+        <input type="number" id="edit-end" step="0.001" min="0" />
+      </div>
+      <div class="modal-actions">
+        <button id="edit-save" class="btn btn-primary">Save</button>
+        <button id="edit-cancel" class="btn btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden import input -->
+  <input type="file" id="import-input" accept=".json" style="display:none" />
+
+  <script src="js/storage.js"></script>
+  <script src="js/laps.js"></script>
+  <script src="js/video.js"></script>
+  <script src="js/export.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
