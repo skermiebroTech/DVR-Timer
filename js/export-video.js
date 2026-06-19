@@ -215,6 +215,17 @@ const ExportVideo = (() => {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 
+  // Seconds of media buffered ahead of the playhead. For a .ts via mpegts.js
+  // this is the SourceBuffer range; at high playback rates it shrinks fast.
+  function bufferedAhead(v) {
+    for (let i = 0; i < v.buffered.length; i++) {
+      if (v.currentTime >= v.buffered.start(i) - 0.25 && v.currentTime <= v.buffered.end(i) + 0.25) {
+        return v.buffered.end(i) - v.currentTime;
+      }
+    }
+    return 0;
+  }
+
   // ── Fast path: WebCodecs + webm-muxer (hardware VP9, 4× realtime) ─────────
 
   // Pick a VP9 level that fits the resolution, then confirm the encoder
@@ -262,10 +273,11 @@ const ExportVideo = (() => {
     });
     encoder.configure(config);
 
-    let stopped = false, n = 0;
+    let stopped = false, n = 0, watchdog = null;
 
     cancelExport = () => {
       stopped = true;
+      if (watchdog) { clearInterval(watchdog); watchdog = null; }
       videoEl.pause();
       videoEl.playbackRate = 1;
       if (encoder.state !== 'closed') encoder.close();
@@ -273,11 +285,29 @@ const ExportVideo = (() => {
       cancelExport = null;
     };
 
-    setStatus('Encoding at 4× speed…');
-    videoEl.playbackRate = 4;
+    // Adaptive speed: 4× is too fast to *decode* high-fps footage (90 fps × 4 =
+    // 360 fps) on many machines, so playback stalls and the export appears
+    // frozen. A watchdog watches readyState and steps the rate down until
+    // playback is sustainable — guaranteeing progress on any footage/hardware.
+    const RATE_STEPS = [4, 3, 2, 1.5, 1];
+    let rateIdx = 0, stallStreak = 0;
+    videoEl.playbackRate = RATE_STEPS[0];
+    setStatus(`Encoding at ${RATE_STEPS[0]}× speed…`);
+    watchdog = setInterval(() => {
+      if (stopped || videoEl.paused) { stallStreak = 0; return; }
+      if (videoEl.readyState <= 2) {                 // stalled: not enough decoded
+        if (++stallStreak >= 2 && rateIdx < RATE_STEPS.length - 1) {
+          videoEl.playbackRate = RATE_STEPS[++rateIdx];
+          setStatus(`Encoding at ${RATE_STEPS[rateIdx]}× speed…`);
+          stallStreak = 0;
+        }
+      } else {
+        stallStreak = 0;
+      }
+    }, 700);
 
     await new Promise(resolve => {
-      function onFrame(_, { mediaTime }) {
+      async function onFrame(_, { mediaTime }) {
         if (stopped) { resolve(); return; }
         draw(mediaTime);
         const vf = new VideoFrame(canvas, { timestamp: Math.round(mediaTime * 1_000_000) });
@@ -286,8 +316,26 @@ const ExportVideo = (() => {
         } finally {
           vf.close(); // always close, even if encode() throws
         }
+        if (videoEl.ended) { resolve(); return; }
+
+        // Pace the capture. At 4× a .ts drains mpegts's lazy buffer faster than
+        // it can reload, and a slow encoder lets its queue grow without bound —
+        // either stalls playback for seconds (the "freeze"). When the buffer
+        // runs low or the encoder falls behind, pause and let them catch up.
+        if (encoder.encodeQueueSize > 8 || bufferedAhead(videoEl) < 1.5) {
+          videoEl.pause();
+          const t0 = performance.now();
+          while (!stopped &&
+                 (encoder.encodeQueueSize > 2 || bufferedAhead(videoEl) < 4) &&
+                 performance.now() - t0 < 4000) {        // cap so EOF can't deadlock
+            await new Promise(r => setTimeout(r, 25));
+          }
+          if (stopped) { resolve(); return; }
+          try { await videoEl.play(); } catch (_) {}
+        }
+
         if (videoEl.ended) resolve();
-        else videoEl.requestVideoFrameCallback(onFrame);
+        else if (!stopped) videoEl.requestVideoFrameCallback(onFrame);
       }
       videoEl.addEventListener('ended', resolve, { once: true });
       videoEl.requestVideoFrameCallback(onFrame);
@@ -298,6 +346,7 @@ const ExportVideo = (() => {
     // rVFC macrotask, so any pending callback will see stopped=true and abort.
     const wasCancelled = stopped;
     stopped = true;
+    if (watchdog) { clearInterval(watchdog); watchdog = null; }
     videoEl.pause();
     videoEl.playbackRate = 1;
     cancelExport = null;
