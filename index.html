@@ -27,24 +27,30 @@
           <div class="upload-inner">
             <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m8 13 4-4 4 4"/><path d="M12 9v8"/></svg>
             <p>Drop a video file here or <label for="file-input" class="file-label">browse</label></p>
-            <p class="upload-hint">Supported: MP4, WebM, MKV, MOV, AVI<br>TS files may require browser support</p>
-            <input type="file" id="file-input" accept="video/mp4,video/webm,video/x-matroska,video/quicktime,video/x-msvideo,video/mp2t,.mp4,.webm,.mkv,.mov,.avi,.ts,.m2ts" />
+            <p class="upload-hint">Supported natively: MP4, WebM, MKV, AVI<br>Auto-remuxed in browser: TS, MOV</p>
+            <input type="file" id="file-input" accept="video/mp4,video/webm,video/x-matroska,video/quicktime,video/x-msvideo,video/mp2t,.mp4,.webm,.mkv,.mov,.avi,.ts,.m2ts,.mts" />
           </div>
         </div>
 
         <!-- Video container (shown after file loaded) -->
         <div id="video-container" class="video-container hidden">
           <div class="video-wrapper">
-            <video id="main-video" preload="metadata"></video>
-            <!-- Race time overlay -->
-            <div id="time-overlay" class="time-overlay hidden">
-              <span id="overlay-time">0:00.000</span>
+            <video id="main-video" preload="auto"></video>
+            <!-- LiveSplit-style race timer overlay — draggable + resizable -->
+            <div id="time-overlay" class="ls-timer hidden">
+              <div class="ls-display">
+                <span id="overlay-time-main" class="ls-main">0:00</span><span id="overlay-time-frac" class="ls-frac">.000</span>
+              </div>
+              <div id="overlay-splits" class="ls-splits hidden"></div>
+              <div id="overlay-fastest" class="ls-fastest hidden"></div>
+              <div class="ls-resize-grip" title="Drag to resize"></div>
             </div>
           </div>
 
           <!-- Video toolbar -->
           <div class="video-toolbar">
             <button id="btn-change-video" class="btn btn-sm btn-secondary">Change Video</button>
+            <button id="btn-export-overlay" class="btn btn-sm btn-secondary">Export w/ Overlay</button>
             <label class="toggle-label">
               <input type="checkbox" id="toggle-overlay" />
               <span>Race Timer Overlay</span>
@@ -164,13 +170,25 @@
     </div>
   </div>
 
+  <!-- Export progress toast -->
+  <div id="export-progress" class="export-progress hidden">
+    <div class="export-progress-spinner"></div>
+    <span id="export-status-text">Recording…</span>
+    <button id="btn-cancel-export" class="btn btn-sm btn-danger">Cancel</button>
+  </div>
+
   <!-- Hidden import input -->
   <input type="file" id="import-input" accept=".json" style="display:none" />
+
+  <!-- mpegts.js — lightweight MSE-based TS demuxer, no WASM required -->
+  <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
 
   <script src="js/storage.js"></script>
   <script src="js/laps.js"></script>
   <script src="js/video.js"></script>
   <script src="js/export.js"></script>
+  <script src="js/transcode.js"></script>
+  <script src="js/export-video.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

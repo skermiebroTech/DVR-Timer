@@ -4,8 +4,8 @@
     {
       "name": "dvr-timer",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8081"],
-      "port": 8081
+      "runtimeArgs": ["server.py", "3848"],
+      "port": 3848
     }
   ]
 }

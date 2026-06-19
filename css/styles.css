@@ -113,6 +113,53 @@ body {
 
 #file-input { display: none; }
 
+/* ---------- Transcode progress overlay ---------- */
+.transcode-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+.transcode-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 32px;
+  text-align: center;
+  max-width: 340px;
+}
+.transcode-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.transcode-status { font-size: 0.9rem; color: var(--text); margin: 0; }
+.transcode-hint   { font-size: 0.75rem; color: var(--text-dim); margin: 0; }
+
+.transcode-bar-wrap {
+  width: 100%;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.transcode-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.2s ease;
+}
+
 /* ---------- Video container ---------- */
 .video-container { display: flex; flex-direction: column; gap: 10px; }
 
@@ -132,22 +179,120 @@ body {
   background: #000;
 }
 
-/* ---------- Time overlay ---------- */
-.time-overlay {
+/* ---------- LiveSplit-style timer overlay ---------- */
+.ls-timer {
   position: absolute;
   top: 12px;
   left: 12px;
-  background: rgba(0,0,0,.72);
-  color: #fff;
-  font-family: 'Courier New', monospace;
-  font-size: 22px;
-  font-weight: bold;
-  padding: 4px 10px;
-  border-radius: 4px;
-  pointer-events: none;
-  letter-spacing: 1px;
-  border: 1px solid rgba(255,255,255,.15);
-  text-shadow: 0 1px 4px #000;
+  z-index: 5;
+  cursor: grab;
+  user-select: none;
+  font-family: 'Courier New', 'Roboto Mono', monospace;
+  font-size: 14px;           /* scale anchor — all em values inside use this */
+  background: rgba(6, 7, 10, 0.90);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  border-right: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  border-left: 3px solid #00e060;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.75), inset 0 1px 0 rgba(255,255,255,0.04);
+  border-radius: 0 2px 2px 0;
+}
+.ls-timer:active { cursor: grabbing; }
+
+.ls-display {
+  display: flex;
+  align-items: baseline;
+  padding: 5px 14px 5px 11px;
+  line-height: 1;
+  white-space: nowrap;
+  gap: 0;
+}
+
+.ls-main {
+  font-size: 2.8em;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.03em;
+  text-shadow: 0 0 28px rgba(0, 230, 96, 0.18);
+}
+
+.ls-frac {
+  font-size: 1.65em;
+  font-weight: 700;
+  color: rgba(195, 210, 220, 0.70);
+  letter-spacing: -0.02em;
+}
+
+/* Splits list below main time */
+.ls-splits {
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding: 2px 14px 4px 11px;
+}
+
+.ls-split-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 1px 0;
+  line-height: 1.3;
+}
+
+.ls-split-num {
+  font-size: 0.88em;
+  color: rgba(130,148,165,0.65);
+  min-width: 2em;
+}
+
+.ls-split-time {
+  font-size: 1.1em;
+  font-weight: 700;
+  color: rgba(195,212,225,0.88);
+  letter-spacing: -0.02em;
+}
+
+/* Current (in-progress) split highlighted in gold */
+.ls-split-row.ls-split-current .ls-split-num { color: rgba(255,225,70,0.65); }
+.ls-split-row.ls-split-current .ls-split-time { color: #ffe040; }
+
+/* Fastest consecutive laps row in the overlay */
+.ls-fastest {
+  border-top: 1px solid rgba(0, 224, 96, 0.25);
+  padding: 6px 14px 7px 11px;
+  margin-top: 2px;
+  font-size: 0.9em;
+  font-weight: 700;
+  color: #00e060;
+  text-shadow: 0 0 8px rgba(0, 224, 96, 0.9), 0 0 20px rgba(0, 224, 96, 0.55);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+/* Fastest laps highlighted in splits list */
+.ls-split-row.ls-split-fastest .ls-split-num { color: rgba(0, 224, 96, 0.7); }
+.ls-split-row.ls-split-fastest .ls-split-time {
+  color: #00e060;
+  text-shadow: 0 0 8px rgba(0, 224, 96, 0.85), 0 0 18px rgba(0, 224, 96, 0.45);
+}
+
+/* Resize grip — bottom-right corner triangle */
+.ls-resize-grip {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 18px;
+  height: 18px;
+  cursor: se-resize;
+}
+.ls-resize-grip::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid rgba(255,255,255,0.30);
+  border-bottom: 2px solid rgba(255,255,255,0.30);
 }
 
 /* ---------- Video toolbar ---------- */
@@ -478,6 +623,34 @@ body {
 .modal-field input:focus { border-color: var(--accent); }
 
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+
+/* ---------- Export progress toast ---------- */
+.export-progress {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--green);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: var(--shadow);
+  z-index: 50;
+  font-size: 13px;
+}
+
+.export-progress-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
 
 /* ---------- Utilities ---------- */
 .hidden { display: none !important; }

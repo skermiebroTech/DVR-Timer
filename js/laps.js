@@ -7,16 +7,19 @@ const Laps = (() => {
   let selectedId = null;
   let nextId = 1;
   let groupSize = 3;
+  let onChange = null;   // called with current laps array after every mutation
 
   // ── Helpers ──────────────────────────────────────────────
 
   function formatTime(seconds) {
     if (seconds == null || isNaN(seconds)) return '—';
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    const ms = Math.round((s % 1) * 1000);
-    const sInt = Math.floor(s);
-    return `${m}:${String(sInt).padStart(2,'0')}.${String(ms).padStart(3,'0')}`;
+    // Integer-ms math so rounding carries into seconds (29.9995 → 0:30.000,
+    // never 0:29.1000).
+    const total = Math.round(seconds * 1000);
+    const ms    = total % 1000;
+    const secs  = Math.floor(total / 1000);
+    const m     = Math.floor(secs / 60);
+    return `${m}:${String(secs % 60).padStart(2,'0')}.${String(ms).padStart(3,'0')}`;
   }
 
   function lapDuration(lap) {
@@ -28,7 +31,7 @@ const Laps = (() => {
   // Returns the starting index of the best group, or -1 if not enough complete laps.
   function findFastestGroup(n) {
     const complete = laps.filter(l => l.startTime != null && l.endTime != null);
-    if (complete.length < n) return { startIndex: -1, indices: [] };
+    if (complete.length < n) return { total: null, ids: new Set() };
 
     let bestTotal = Infinity;
     let bestStart = 0;
@@ -112,6 +115,8 @@ const Laps = (() => {
 
   function getLaps() { return laps; }
 
+  function getFastestGroup() { return findFastestGroup(groupSize); }
+
   // ── Render ────────────────────────────────────────────────
 
   function render() {
@@ -137,11 +142,20 @@ const Laps = (() => {
 
     const { ids: fastIds, total: fastTotal } = findFastestGroup(groupSize);
 
-    // Update fastest summary
+    // Sync fastest IDs into the timer overlay splits
+    if (typeof VideoPlayer !== 'undefined') VideoPlayer.setFastestIds(fastIds || new Set());
+
+    // Update fastest summary (sidebar) and overlay
+    const overlayFastest = document.getElementById('overlay-fastest');
     if (fastIds && fastIds.size > 0) {
       summaryEl.textContent = `Fastest ${groupSize}: ${formatTime(fastTotal)}`;
+      if (overlayFastest) {
+        overlayFastest.textContent = `Best ${groupSize}: ${formatTime(fastTotal)}`;
+        overlayFastest.classList.remove('hidden');
+      }
     } else {
       summaryEl.textContent = `Need ${groupSize}+ complete laps`;
+      if (overlayFastest) overlayFastest.classList.add('hidden');
     }
 
     tbody.innerHTML = '';
@@ -204,6 +218,8 @@ const Laps = (() => {
         deleteLap(Number(btn.dataset.id));
       });
     });
+
+    if (onChange) onChange(laps);
   }
 
   // ── Edit modal ────────────────────────────────────────────
@@ -240,6 +256,8 @@ const Laps = (() => {
     cancelBtn.addEventListener('click', close);
   }
 
+  function setOnChange(fn) { onChange = fn; }
+
   return { init, addLap, updateLap, deleteLap, selectLap, getSelected,
-           deleteSelected, setGroupSize, setLaps, getLaps, formatTime };
+           deleteSelected, setGroupSize, setLaps, getLaps, getFastestGroup, formatTime, setOnChange };
 })();
