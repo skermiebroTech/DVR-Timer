@@ -14,7 +14,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const uploadArea      = document.getElementById('upload-area');
   const fileInput       = document.getElementById('file-input');
   const videoContainer  = document.getElementById('video-container');
-  let tsDuration = null; // set when a .ts file is loaded; used by seek override
+  let tsDuration = null;     // set when a .ts file is loaded; used by seek override
+  let currentTsFile = null;  // the .ts currently loaded (null for native / none)
+  let tsErrorShown = false;  // guard: show the decode notice only once per load
+  const mainVideoEl = document.getElementById('main-video');
 
   function showPlayer() {
     uploadArea.classList.add('hidden');
@@ -26,12 +29,47 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadArea.classList.remove('hidden');
   }
 
+  // A .ts whose H.264 the browser's decoder rejects (classic Firefox-on-macOS
+  // VideoToolbox case) otherwise fails to a silent black screen. Surface
+  // actionable guidance instead. The failure shows up as a media-element error
+  // (code 3 = MEDIA_ERR_DECODE) and/or an mpegts MEDIA_ERROR — hook both, once.
+  function reportTsDecodeError() {
+    if (!currentTsFile || tsErrorShown) return;
+    tsErrorShown = true;
+    alert(
+      `Could not decode "${currentTsFile.name}" in this browser.\n\n` +
+      `Firefox on macOS uses Apple's hardware H.264 decoder, which rejects some ` +
+      `HDZero recordings. To fix, either:\n` +
+      `  • Use Chrome or Edge (recommended), or\n` +
+      `  • In Firefox, open about:config and set\n` +
+      `    media.hardware-video-decoding.enabled = false, then reload.`
+    );
+    Transcoder.destroyActive();
+    hidePlayer();
+  }
+  mainVideoEl.addEventListener('error', () => {
+    if (mainVideoEl.error && mainVideoEl.error.code === 3) reportTsDecodeError();
+  });
+  Transcoder.onTsError((type) => {
+    if (!mpegts.ErrorTypes || type === mpegts.ErrorTypes.MEDIA_ERROR) reportTsDecodeError();
+  });
+
   function loadVideo(file) {
     if (!file) return;
 
     if (Transcoder.isTsFile(file)) {
+      // No Media Source Extensions → mpegts.js can't run at all (e.g. iOS Safari).
+      if (!window.mpegts || !mpegts.isSupported()) {
+        alert(
+          `Your browser can't play HDZero .ts files — it lacks Media Source ` +
+          `Extensions. Please use Chrome or Edge on a desktop.`
+        );
+        return;
+      }
       tsDuration = null;
-      const videoEl = document.getElementById('main-video');
+      currentTsFile = file;
+      tsErrorShown = false;
+      const videoEl = mainVideoEl;
       VideoPlayer.prepareForLoad();
       Transcoder.loadTsFile(file, videoEl);
       showPlayer();
@@ -66,6 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .catch(() => {});
     } else if (Transcoder.isMovFile(file)) {
       tsDuration = null;
+      currentTsFile = null;
       Transcoder.destroyActive();
       VideoPlayer.setSeekOverride(null);
       VideoPlayer.loadFile(file);
@@ -73,6 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
       listenForMovError(file);
     } else {
       tsDuration = null;
+      currentTsFile = null;
       Transcoder.destroyActive();
       VideoPlayer.setSeekOverride(null);
       VideoPlayer.loadFile(file);

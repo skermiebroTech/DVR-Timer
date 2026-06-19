@@ -47,8 +47,20 @@ const Transcoder = (() => {
     enableStashBuffer: false,  // disable stash to reduce peak memory
   };
 
+  let tsErrorCb = null;
+  // Register a handler for fatal playback errors (e.g. a browser whose decoder
+  // rejects the stream). Called as (type, detail, info).
+  function onTsError(cb) { tsErrorCb = cb; }
+
   function _createPlayer(url, videoEl) {
     const player = mpegts.createPlayer({ type: 'mpegts', url, isLive: false }, MPEGTS_CONFIG);
+    // Surface errors instead of failing to a silent black screen. The common one
+    // is Firefox/macOS handing H.264 to Apple VideoToolbox, which rejects some
+    // HDZero bitstreams (MEDIA_ERROR / decode error) even though Chrome plays them.
+    player.on(mpegts.Events.ERROR, (type, detail, info) => {
+      console.error('[DVR] mpegts error:', type, detail, info);
+      if (tsErrorCb) tsErrorCb(type, detail, info);
+    });
     player.attachMediaElement(videoEl);
     player.load();
     activePlayer = player;
@@ -423,5 +435,5 @@ const Transcoder = (() => {
   function isTsFile(file)  { return /\.(ts|m2ts|mts)$/i.test(file.name); }
   function isMovFile(file) { return /\.mov$/i.test(file.name); }
 
-  return { loadTsFile, seekTsTo, isTsActive, destroyActive, isTsFile, isMovFile, getTsDuration, getFrameDuration };
+  return { loadTsFile, seekTsTo, isTsActive, destroyActive, isTsFile, isMovFile, getTsDuration, getFrameDuration, onTsError };
 })();
