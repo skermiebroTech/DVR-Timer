@@ -183,6 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btn-export-overlay').addEventListener('click', () => ExportVideo.start());
   document.getElementById('btn-export-mp4').addEventListener('click', () => ExportFfmpeg.start());
+  document.getElementById('btn-export-timer').addEventListener('click', () => ExportFfmpeg.startTimerOnly());
   // One Cancel button serves whichever export is running; the idle one no-ops.
   document.getElementById('btn-cancel-export').addEventListener('click', () => {
     ExportVideo.cancel();

@@ -52,6 +52,7 @@
             <button id="btn-change-video" class="btn btn-sm btn-secondary">Change Video</button>
             <button id="btn-export-overlay" class="btn btn-sm btn-secondary" title="Capture the player to WebM (VP9, fast, uses the player)">Export w/ Overlay</button>
             <button id="btn-export-mp4" class="btn btn-sm btn-secondary" title="Encode an MP4 in the background — the player stays free">Export MP4 (background)</button>
+            <button id="btn-export-timer" class="btn btn-sm btn-secondary" title="Export ONLY the timer overlay as a transparent QuickTime (.mov) to composite over your footage in an editor — fast, no video re-encode">Export Timer Only</button>
             <select id="export-resolution" class="select-sm" title="Output resolution for the background MP4. 1080p/4K upscale the footage and re-render the overlay crisply — but encode much slower (4K is very slow for long clips).">
               <option value="source" selected>Source res</option>
               <option value="1080">1080p</option>
@@ -224,6 +225,6 @@
   <script src="js/overlay-render.js?v=4"></script>
   <script src="js/export-video.js?v=4"></script>
   <script src="js/export-ffmpeg.js?v=5"></script>
-  <script src="js/app.js?v=4"></script>
+  <script src="js/app.js?v=5"></script>
 </body>
 </html>

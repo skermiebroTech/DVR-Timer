@@ -168,14 +168,14 @@ const ExportFfmpeg = (() => {
     return `/input/${name}`;
   }
 
-  async function cleanup(ff, overlayCount) {
+  async function cleanup(ff, overlayCount, outName) {
     try { await ff.unmount('/input'); } catch (_) {}
     try { await ff.deleteDir('/input'); } catch (_) {}
     for (let i = 0; i < overlayCount; i++) {
       try { await ff.deleteFile(`/ov/${String(i).padStart(6, '0')}.png`); } catch (_) {}
     }
     try { await ff.deleteDir('/ov'); } catch (_) {}
-    try { await ff.deleteFile('out.mp4'); } catch (_) {}
+    if (outName) { try { await ff.deleteFile(outName); } catch (_) {} }
   }
 
   /**
@@ -272,7 +272,63 @@ const ExportFfmpeg = (() => {
       ff.off('progress', onLogProgress);
       if (onLog) ff.off('log', onLog);
       // If the instance was terminated by cancel(), it's already gone.
-      if (ffmpeg) { try { await cleanup(ff, overlayCount); } catch (_) {} }
+      if (ffmpeg) { try { await cleanup(ff, overlayCount, 'out.mp4'); } catch (_) {} }
+    }
+  }
+
+  /**
+   * Timer-only export. Renders the overlay alone to a full-frame transparent
+   * QuickTime (.mov, qtrle/argb) so it drops onto the source footage at 0,0 in an
+   * external editor. No source decode or H.264 re-encode → far faster than run().
+   * Always rendered at source resolution for 1:1 alignment (the resolution
+   * selector, which upscales the footage, doesn't apply here).
+   * @param opts {laps, fastestIds, fastTotal, groupSize, geom, width, height,
+   *              durationSec, trimStart, trimEnd, overlayFps, onStatus, onProgress}
+   */
+  async function runTimerOnly(opts) {
+    const { onStatus, onProgress, durationSec } = opts;
+    const trimStart = Math.max(0, opts.trimStart || 0);
+    const trimEnd   = (opts.trimEnd && opts.trimEnd <= durationSec + 0.001) ? opts.trimEnd : durationSec;
+    const spanSec   = Math.max(0.001, trimEnd - trimStart);
+    cancelled = false;
+    let overlayCount = 0;
+    const ff = await load(onStatus);
+
+    const onLogProgress = ({ time }) => {
+      if (time && spanSec) onProgress?.(Math.min(1, (time / 1e6) / spanSec));
+    };
+    ff.on('progress', onLogProgress);
+
+    const outW = opts.width, outH = opts.height, geom = opts.geom;
+    const renderOpts = { ...opts, width: outW, height: outH, geom, trimStart, trimEnd, spanSec };
+
+    try {
+      const crop = measureCrop(renderOpts);
+      if (!crop) return null; // no overlay across the clip window → nothing to export
+      onStatus?.('Rendering overlay…');
+      overlayCount = await writeOverlaySequence(ff, renderOpts, crop, onStatus);
+      if (cancelled) return null;
+
+      const fps = opts.overlayFps;
+      onStatus?.('Encoding… 0%');
+      // Pad the cropped overlay back to the full source frame with a transparent
+      // border (pad color black@0.0 over rgba), then encode QuickTime Animation
+      // (qtrle) with an alpha channel (argb). Lossless, universally importable.
+      await ff.exec([
+        '-framerate', String(fps), '-i', '/ov/%06d.png',
+        '-vf', `pad=${outW}:${outH}:${crop.cropX}:${crop.cropY}:color=black@0.0,format=rgba`,
+        '-c:v', 'qtrle', '-pix_fmt', 'argb',
+        '-r', String(fps),
+        'overlay.mov',
+      ]);
+      if (cancelled) return null;
+
+      onStatus?.('Saving…');
+      const data = await ff.readFile('overlay.mov');
+      return new Blob([data.buffer], { type: 'video/quicktime' });
+    } finally {
+      ff.off('progress', onLogProgress);
+      if (ffmpeg) { try { await cleanup(ff, overlayCount, 'overlay.mov'); } catch (_) {} }
     }
   }
 
@@ -367,5 +423,61 @@ const ExportFfmpeg = (() => {
     }
   }
 
-  return { start, cancel, setSource, sourceBaseName, run, load };
+  async function startTimerOnly() {
+    const videoEl    = document.getElementById('main-video');
+    const overlayEl  = document.getElementById('time-overlay');
+    const progressEl = document.getElementById('export-progress');
+    if (!videoEl?.videoWidth) { alert('No video loaded.'); return; }
+    if (running)              { alert('Export already in progress.'); return; }
+
+    const laps = Laps.getLaps();
+    if (laps.length === 0) { alert('No laps marked — the timer overlay would be empty.'); return; }
+    const fastestIds = VideoPlayer.getFastestIds();
+    const { total: fastTotal } = Laps.getFastestGroup();
+    const groupSize  = parseInt(document.getElementById('group-size').value, 10) || 3;
+
+    // Compute overlay geometry with the overlay element visible (matches start()).
+    const overlayWasHidden = overlayEl.classList.contains('hidden');
+    if (overlayWasHidden) overlayEl.classList.remove('hidden');
+    const geom = OverlayRender.overlayGeometry(videoEl, overlayEl);
+    if (overlayWasHidden) overlayEl.classList.add('hidden');
+
+    const durationSec = VideoPlayer.getDurationSec?.() || videoEl.duration || 0;
+    const trim = (typeof Timeline !== 'undefined' && Timeline.getTrim) ? Timeline.getTrim() : null;
+    const trimStart = (trim && trim.isTrimmed) ? trim.startSec : 0;
+    const trimEnd   = (trim && trim.isTrimmed) ? trim.endSec   : durationSec;
+
+    running = true;
+    progressEl?.classList.remove('hidden');
+    progressEl?.classList.add('ffmpeg-mode');
+    setProgress(0);
+
+    try {
+      const blob = await runTimerOnly({
+        laps, fastestIds, fastTotal, groupSize, geom,
+        width: videoEl.videoWidth, height: videoEl.videoHeight,
+        durationSec, trimStart, trimEnd,
+        overlayFps: 30,
+        onStatus: setStatus,
+        onProgress: setProgress,
+      });
+      if (blob) {
+        setStatus('Done — downloading…');
+        triggerDownload(blob, `${sourceBaseName() || 'race'}-timer.mov`);
+      } else {
+        setStatus(cancelled ? 'Cancelled.' : 'No overlay to export.');
+      }
+    } catch (err) {
+      if (!cancelled) {
+        setStatus(`Error: ${err.message}`);
+        console.error('[ExportFfmpeg]', err);
+      }
+    } finally {
+      running = false;
+      progressEl?.classList.add('hidden');
+      progressEl?.classList.remove('ffmpeg-mode');
+    }
+  }
+
+  return { start, startTimerOnly, cancel, setSource, sourceBaseName, run, runTimerOnly, load };
 })();
