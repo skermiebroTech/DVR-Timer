@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DVR Race Timer</title>
-  <link rel="stylesheet" href="css/styles.css?v=2" />
+  <link rel="stylesheet" href="css/styles.css?v=3" />
 </head>
 <body>
   <div id="app">
@@ -27,7 +27,7 @@
           <div class="upload-inner">
             <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m8 13 4-4 4 4"/><path d="M12 9v8"/></svg>
             <p>Drop a video file here or <label for="file-input" class="file-label">browse</label></p>
-            <p class="upload-hint">Supported natively: MP4, WebM, MKV, AVI<br>Auto-remuxed in browser: TS, MOV</p>
+            <p class="upload-hint">Plays natively: MP4, WebM, MKV, AVI, MOV (H.264)<br>Demuxed in browser: TS / M2TS / MTS (HDZero)</p>
             <input type="file" id="file-input" accept="video/mp4,video/webm,video/x-matroska,video/quicktime,video/x-msvideo,video/mp2t,.mp4,.webm,.mkv,.mov,.avi,.ts,.m2ts,.mts" />
           </div>
         </div>
@@ -50,7 +50,6 @@
           <!-- Video toolbar -->
           <div class="video-toolbar">
             <button id="btn-change-video" class="btn btn-sm btn-secondary">Change Video</button>
-            <button id="btn-export-overlay" class="btn btn-sm btn-secondary" title="Capture the player to WebM (VP9, fast, uses the player)">Export w/ Overlay</button>
             <button id="btn-export-mp4" class="btn btn-sm btn-secondary" title="Encode an MP4 in the background — the player stays free">Export MP4 (background)</button>
             <button id="btn-export-timer" class="btn btn-sm btn-secondary" title="Export ONLY the timer overlay as a transparent QuickTime (.mov) to composite over your footage in an editor — fast, no video re-encode">Export Timer Only</button>
             <select id="export-resolution" class="select-sm" title="Output resolution for the background MP4. 1080p/4K upscale the footage and re-render the overlay crisply — but encode much slower (4K is very slow for long clips).">
@@ -72,7 +71,7 @@
           <!-- Scrub bar -->
           <div class="scrub-row">
             <span id="current-time-display" class="time-display">0:00.000</span>
-            <input type="range" id="scrub-bar" class="scrub-bar" min="0" max="1000" value="0" step="1" />
+            <input type="range" id="scrub-bar" class="scrub-bar" min="0" max="1000" value="0" step="1" aria-label="Seek video" />
             <span id="duration-display" class="time-display">0:00.000</span>
           </div>
 
@@ -97,21 +96,21 @@
           <!-- Playback controls -->
           <div class="controls-row">
             <div class="playback-controls">
-              <button id="btn-prev-frame" class="btn btn-icon" title="Previous frame (,)">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+              <button id="btn-prev-frame" class="btn btn-icon" title="Previous frame (,)" aria-label="Previous frame">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
               </button>
-              <button id="btn-seek-back" class="btn btn-icon" title="Seek back 5s (←)">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6 8.5 6V6l-8.5 6z"/></svg>
+              <button id="btn-seek-back" class="btn btn-icon" title="Seek back 5s (←)" aria-label="Seek back 5 seconds">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6 8.5 6V6l-8.5 6z"/></svg>
               </button>
-              <button id="btn-play-pause" class="btn btn-icon btn-play" title="Play/Pause (Space)">
-                <svg id="icon-play" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                <svg id="icon-pause" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="hidden"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+              <button id="btn-play-pause" class="btn btn-icon btn-play" title="Play/Pause (Space)" aria-label="Play or pause">
+                <svg id="icon-play" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                <svg id="icon-pause" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="hidden" aria-hidden="true"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
               </button>
-              <button id="btn-seek-forward" class="btn btn-icon" title="Seek forward 5s (→)">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
+              <button id="btn-seek-forward" class="btn btn-icon" title="Seek forward 5s (→)" aria-label="Seek forward 5 seconds">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
               </button>
-              <button id="btn-next-frame" class="btn btn-icon" title="Next frame (.)">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+              <button id="btn-next-frame" class="btn btn-icon" title="Next frame (.)" aria-label="Next frame">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
               </button>
             </div>
 
@@ -183,17 +182,18 @@
   </div>
 
   <!-- Edit lap modal -->
-  <div id="edit-modal" class="modal-overlay hidden">
+  <div id="edit-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title">
     <div class="modal">
-      <h3>Edit Lap</h3>
+      <h3 id="edit-modal-title">Edit Lap</h3>
       <div class="modal-field">
-        <label>Start time (seconds)</label>
+        <label for="edit-start">Start time (seconds)</label>
         <input type="number" id="edit-start" step="0.001" min="0" />
       </div>
       <div class="modal-field">
-        <label>End time (seconds)</label>
+        <label for="edit-end">End time (seconds)</label>
         <input type="number" id="edit-end" step="0.001" min="0" />
       </div>
+      <p id="edit-error" class="modal-error hidden">End time must be after start time.</p>
       <div class="modal-actions">
         <button id="edit-save" class="btn btn-primary">Save</button>
         <button id="edit-cancel" class="btn btn-secondary">Cancel</button>
@@ -222,14 +222,13 @@
   <script src="vendor/ffmpeg/ffmpeg.js"></script>
 
   <script src="js/storage.js?v=4"></script>
-  <script src="js/laps.js?v=4"></script>
+  <script src="js/laps.js?v=5"></script>
   <script src="js/timeline.js?v=4"></script>
   <script src="js/video.js?v=4"></script>
   <script src="js/export.js?v=4"></script>
   <script src="js/transcode.js?v=4"></script>
   <script src="js/overlay-render.js?v=4"></script>
-  <script src="js/export-video.js?v=4"></script>
   <script src="js/export-ffmpeg.js?v=5"></script>
-  <script src="js/app.js?v=5"></script>
+  <script src="js/app.js?v=6"></script>
 </body>
 </html>

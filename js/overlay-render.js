@@ -3,11 +3,10 @@
    ============================================================
 
    Single source of truth for drawing the LiveSplit-style timer overlay onto
-   a canvas. Used by BOTH export paths:
-     • export-video.js  — WebCodecs/MediaRecorder, draws overlay over each
-       decoded player frame.
-     • export-ffmpeg.js — renders the overlay alone (transparent) to an image
-       sequence that ffmpeg.wasm composites over the source.
+   a canvas. Used by export-ffmpeg.js for both of its outputs:
+     • the full MP4 — the overlay is rendered (transparent) to an image sequence
+       that ffmpeg.wasm composites over the source.
+     • the timer-only .mov — the same sequence is encoded on its own with alpha.
 
    Keeping one renderer guarantees the burned-in times stay byte-for-byte
    consistent across export methods — the timing precision is the whole point

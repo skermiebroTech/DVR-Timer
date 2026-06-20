@@ -2,8 +2,7 @@
    export-ffmpeg.js — Player-free background export via ffmpeg.wasm
    ============================================================
 
-   Unlike export-video.js (which drives the on-screen player and captures it),
-   this path runs entirely off the player:
+   This path runs entirely off the on-screen player:
 
      1. Render the race-timer overlay (OverlayRender) to a transparent PNG
         sequence in a worker-side canvas — independent of playback.
@@ -11,6 +10,10 @@
         (a 1 GB .ts never gets copied into the WASM heap).
      3. ffmpeg decodes the source, composites the overlay, and encodes H.264 MP4,
         emitting progress for a real status bar.
+
+   A second entry point (runTimerOnly) encodes just the overlay sequence to a
+   transparent QuickTime .mov for compositing in an external editor — no source
+   decode or re-encode, so it's far faster.
 
    The visible player stays free for scrubbing/marking laps while this runs.
    Self-hosted ffmpeg files live in /vendor (see vendor/README).

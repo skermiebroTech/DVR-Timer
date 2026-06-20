@@ -8,6 +8,8 @@ const Laps = (() => {
   let nextId = 1;
   let groupSize = 3;
   let onChange = null;   // called with current laps array after every mutation
+  let flashId = null;    // id of a just-added lap, flashed once in the next render
+  let editingId = null;  // lap currently open in the edit modal
 
   // ── Helpers ──────────────────────────────────────────────
 
@@ -51,6 +53,7 @@ const Laps = (() => {
   function init(savedLaps) {
     laps = savedLaps || [];
     nextId = laps.length ? Math.max(...laps.map(l => l.id)) + 1 : 1;
+    initModal();
     render();
   }
 
@@ -61,7 +64,9 @@ const Laps = (() => {
     if (last && last.endTime == null) {
       last.endTime = currentTime;
     }
-    laps.push({ id: nextId++, startTime: currentTime, endTime: null });
+    const id = nextId++;
+    laps.push({ id, startTime: currentTime, endTime: null });
+    flashId = id;          // highlight this row once on the next render
     Storage.save(laps);
     render();
   }
@@ -134,6 +139,12 @@ const Laps = (() => {
       table.classList.add('hidden');
       noMsg.classList.remove('hidden');
       summaryEl.textContent = '—';
+      // Clear any stale overlay state from before the last lap was removed, and
+      // still notify subscribers (overlay splits + header buttons) of the empty set.
+      const overlayFastest = document.getElementById('overlay-fastest');
+      if (overlayFastest) overlayFastest.classList.add('hidden');
+      if (typeof VideoPlayer !== 'undefined') VideoPlayer.setFastestIds(new Set());
+      if (onChange) onChange(laps);
       return;
     }
 
@@ -164,7 +175,8 @@ const Laps = (() => {
       const tr = document.createElement('tr');
       tr.className = 'lap-row' +
         (lap.id === selectedId ? ' selected' : '') +
-        (fastIds && fastIds.has(lap.id) ? ' fastest' : '');
+        (fastIds && fastIds.has(lap.id) ? ' fastest' : '') +
+        (lap.id === flashId ? ' just-added' : '');
       tr.dataset.id = lap.id;
 
       tr.innerHTML = `
@@ -187,6 +199,7 @@ const Laps = (() => {
       `;
       tbody.appendChild(tr);
     });
+    flashId = null;  // one-shot: don't re-flash on subsequent (non-add) renders
 
     // Wire up row/button events
     tbody.querySelectorAll('.lap-row').forEach(row => {
@@ -223,37 +236,70 @@ const Laps = (() => {
   }
 
   // ── Edit modal ────────────────────────────────────────────
+  // Listeners are wired exactly once in initModal(); openEditModal() only fills
+  // the fields and records which lap is being edited. (The previous version
+  // re-attached save/cancel handlers on every open and relied on its own close()
+  // to detach them — closing the modal another way, e.g. a backdrop click, left
+  // them attached and stacked duplicate handlers on the next open.)
+
+  function initModal() {
+    const modal      = document.getElementById('edit-modal');
+    const startInput = document.getElementById('edit-start');
+    const endInput   = document.getElementById('edit-end');
+    const errorEl    = document.getElementById('edit-error');
+    const saveBtn    = document.getElementById('edit-save');
+    const cancelBtn  = document.getElementById('edit-cancel');
+    if (!modal) return;
+
+    const closeModal = () => {
+      modal.classList.add('hidden');
+      if (errorEl) errorEl.classList.add('hidden');
+      editingId = null;
+    };
+
+    const save = () => {
+      if (editingId == null) return;
+      const s = parseFloat(startInput.value);
+      const e = parseFloat(endInput.value);
+      const sv = isNaN(s) ? null : s;
+      const ev = isNaN(e) ? null : e;
+      // A lap's end must come after its start — block the invalid case instead of
+      // silently storing a negative duration (these times feed race results).
+      if (sv != null && ev != null && ev <= sv) {
+        if (errorEl) errorEl.classList.remove('hidden');
+        return;
+      }
+      updateLap(editingId, sv, ev);
+      closeModal();
+    };
+
+    saveBtn.addEventListener('click', save);
+    cancelBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', (e) => {
+      if (modal.classList.contains('hidden')) return;
+      if (e.key === 'Escape')     { e.preventDefault(); closeModal(); }
+      else if (e.key === 'Enter') { e.preventDefault(); save(); }
+    });
+  }
 
   function openEditModal(id) {
     const lap = laps.find(l => l.id === id);
     if (!lap) return;
+    editingId = id;
 
-    const modal = document.getElementById('edit-modal');
+    const modal      = document.getElementById('edit-modal');
     const startInput = document.getElementById('edit-start');
-    const endInput = document.getElementById('edit-end');
+    const endInput   = document.getElementById('edit-end');
+    const errorEl    = document.getElementById('edit-error');
 
     startInput.value = lap.startTime != null ? lap.startTime.toFixed(3) : '';
     endInput.value   = lap.endTime   != null ? lap.endTime.toFixed(3)   : '';
+    if (errorEl) errorEl.classList.add('hidden');
 
     modal.classList.remove('hidden');
-
-    const saveBtn   = document.getElementById('edit-save');
-    const cancelBtn = document.getElementById('edit-cancel');
-
-    const doSave = () => {
-      const s = parseFloat(startInput.value);
-      const e = parseFloat(endInput.value);
-      updateLap(id, isNaN(s) ? null : s, isNaN(e) ? null : e);
-      close();
-    };
-    const close = () => {
-      modal.classList.add('hidden');
-      saveBtn.removeEventListener('click', doSave);
-      cancelBtn.removeEventListener('click', close);
-    };
-
-    saveBtn.addEventListener('click', doSave);
-    cancelBtn.addEventListener('click', close);
+    startInput.focus();
+    startInput.select();
   }
 
   function setOnChange(fn) { onChange = fn; }

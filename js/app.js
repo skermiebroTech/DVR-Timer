@@ -7,9 +7,23 @@ document.addEventListener('DOMContentLoaded', () => {
   VideoPlayer.init();
   Timeline.init();
   Laps.init(Storage.load());
-  // Keep the overlay splits panel in sync with the lap table
-  Laps.setOnChange(laps => VideoPlayer.setLapSplits(laps));
+  // Keep the overlay splits panel + header buttons in sync with the lap table
+  Laps.setOnChange(laps => {
+    VideoPlayer.setLapSplits(laps);
+    refreshLapButtons(laps);
+  });
   VideoPlayer.setLapSplits(Laps.getLaps()); // seed with any restored laps
+  refreshLapButtons(Laps.getLaps());
+
+  // Export/Clear act on lap data — disable them when there are no laps so it's
+  // clear there's nothing to act on (and we never download an empty file).
+  function refreshLapButtons(laps) {
+    const has = laps.length > 0;
+    ['btn-export-json', 'btn-export-csv', 'btn-clear-session'].forEach(id => {
+      const b = document.getElementById(id);
+      if (b) b.disabled = !has;
+    });
+  }
 
   // ── File upload wiring ────────────────────────────────────
   const uploadArea      = document.getElementById('upload-area');
@@ -181,14 +195,9 @@ document.addEventListener('DOMContentLoaded', () => {
     fileInput.value = '';
   });
 
-  document.getElementById('btn-export-overlay').addEventListener('click', () => ExportVideo.start());
   document.getElementById('btn-export-mp4').addEventListener('click', () => ExportFfmpeg.start());
   document.getElementById('btn-export-timer').addEventListener('click', () => ExportFfmpeg.startTimerOnly());
-  // One Cancel button serves whichever export is running; the idle one no-ops.
-  document.getElementById('btn-cancel-export').addEventListener('click', () => {
-    ExportVideo.cancel();
-    ExportFfmpeg.cancel();
-  });
+  document.getElementById('btn-cancel-export').addEventListener('click', () => ExportFfmpeg.cancel());
 
   // ── Add lap button ────────────────────────────────────────
   document.getElementById('btn-add-lap').addEventListener('click', () => {
@@ -221,9 +230,5 @@ document.addEventListener('DOMContentLoaded', () => {
       Laps.setLaps([]);
     }
   });
-
-  // ── Modal: close on backdrop click ───────────────────────
-  document.getElementById('edit-modal').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) e.currentTarget.classList.add('hidden');
-  });
+  // (The edit-lap modal wires its own backdrop/Escape/Enter handling in Laps.)
 });
