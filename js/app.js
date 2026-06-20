@@ -57,6 +57,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function loadVideo(file) {
     if (!file) return;
 
+    // Retain the original File so the background MP4 export can mount it directly
+    // (WORKERFS) instead of going back through the player.
+    ExportFfmpeg.setSource(file);
+
     if (Transcoder.isTsFile(file)) {
       // No Media Source Extensions → mpegts.js can't run at all (e.g. iOS Safari).
       if (!window.mpegts || !mpegts.isSupported()) {
@@ -173,7 +177,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btn-export-overlay').addEventListener('click', () => ExportVideo.start());
-  document.getElementById('btn-cancel-export').addEventListener('click', () => ExportVideo.cancel());
+  document.getElementById('btn-export-mp4').addEventListener('click', () => ExportFfmpeg.start());
+  // One Cancel button serves whichever export is running; the idle one no-ops.
+  document.getElementById('btn-cancel-export').addEventListener('click', () => {
+    ExportVideo.cancel();
+    ExportFfmpeg.cancel();
+  });
 
   // ── Add lap button ────────────────────────────────────────
   document.getElementById('btn-add-lap').addEventListener('click', () => {

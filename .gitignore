@@ -1,0 +1,42 @@
+# Large local test inputs (provided ad hoc, not part of the repo)
+test/assets/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code local files
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# Node / npm (if tooling is added later)
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Logs & temp
+*.log
+*.tmp
+tmp/
+
+# Build / export output
+dist/
+build/
+*.local

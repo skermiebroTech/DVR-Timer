@@ -50,7 +50,13 @@
           <!-- Video toolbar -->
           <div class="video-toolbar">
             <button id="btn-change-video" class="btn btn-sm btn-secondary">Change Video</button>
-            <button id="btn-export-overlay" class="btn btn-sm btn-secondary">Export w/ Overlay</button>
+            <button id="btn-export-overlay" class="btn btn-sm btn-secondary" title="Capture the player to WebM (VP9, fast, uses the player)">Export w/ Overlay</button>
+            <button id="btn-export-mp4" class="btn btn-sm btn-secondary" title="Encode an MP4 in the background — the player stays free">Export MP4 (background)</button>
+            <select id="export-resolution" class="select-sm" title="Output resolution for the background MP4. 1080p/4K upscale the footage and re-render the overlay crisply — but encode much slower (4K is very slow for long clips).">
+              <option value="source" selected>Source res</option>
+              <option value="1080">1080p</option>
+              <option value="2160">4K</option>
+            </select>
             <label class="toggle-label">
               <input type="checkbox" id="toggle-overlay" />
               <span>Race Timer Overlay</span>
@@ -173,7 +179,10 @@
   <!-- Export progress toast -->
   <div id="export-progress" class="export-progress hidden">
     <div class="export-progress-spinner"></div>
-    <span id="export-status-text">Recording…</span>
+    <div class="export-progress-body">
+      <span id="export-status-text">Recording…</span>
+      <div class="export-progress-track"><div id="export-progress-bar"></div></div>
+    </div>
     <button id="btn-cancel-export" class="btn btn-sm btn-danger">Cancel</button>
   </div>
 
@@ -183,12 +192,18 @@
   <!-- mpegts.js — lightweight MSE-based TS demuxer, no WASM required -->
   <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
 
-  <script src="js/storage.js"></script>
-  <script src="js/laps.js"></script>
-  <script src="js/video.js"></script>
-  <script src="js/export.js"></script>
-  <script src="js/transcode.js"></script>
-  <script src="js/export-video.js"></script>
-  <script src="js/app.js"></script>
+  <!-- ffmpeg.wasm UMD (self-hosted, same-origin so its worker can be constructed).
+       Defines window.FFmpegWASM; the 32 MB core is fetched lazily on first MP4 export. -->
+  <script src="vendor/ffmpeg/ffmpeg.js"></script>
+
+  <script src="js/storage.js?v=4"></script>
+  <script src="js/laps.js?v=4"></script>
+  <script src="js/video.js?v=4"></script>
+  <script src="js/export.js?v=4"></script>
+  <script src="js/transcode.js?v=4"></script>
+  <script src="js/overlay-render.js?v=4"></script>
+  <script src="js/export-video.js?v=4"></script>
+  <script src="js/export-ffmpeg.js?v=4"></script>
+  <script src="js/app.js?v=4"></script>
 </body>
 </html>

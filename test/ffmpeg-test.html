@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ffmpeg.wasm foundation test</title>
+  <style>
+    body { font: 14px/1.5 monospace; background: #0b0d10; color: #d6e0e8; padding: 20px; }
+    button { font: inherit; padding: 8px 16px; background: #00e060; border: 0; border-radius: 4px; cursor: pointer; }
+    #log { white-space: pre-wrap; margin-top: 16px; max-height: 60vh; overflow: auto; border: 1px solid #243; padding: 10px; }
+    .stat { color: #ffe040; }
+    video { max-width: 480px; margin-top: 12px; display: block; }
+  </style>
+</head>
+<body>
+  <h2>ffmpeg.wasm foundation test</h2>
+  <p>Transcodes <code>assets/clip6.ts</code> (HDZero 720p90 H.264 TS) → MP4 to prove ffmpeg.wasm
+     works in-browser and measure throughput.</p>
+  <button id="run">Run transcode</button>
+  <div id="status" class="stat"></div>
+  <div id="log"></div>
+  <video id="out" controls></video>
+
+  <!-- Self-hosted ffmpeg.wasm UMD (same-origin so the internal Worker can be constructed) -->
+  <script src="/vendor/ffmpeg/ffmpeg.js"></script>
+  <script>
+    const { FFmpeg } = FFmpegWASM;
+    const logEl = document.getElementById('log');
+    const statusEl = document.getElementById('status');
+    const log = (m) => { logEl.textContent += m + '\n'; logEl.scrollTop = logEl.scrollHeight; };
+    const setStatus = (m) => { statusEl.textContent = m; };
+
+    // Tiny equivalents of @ffmpeg/util helpers (avoid another dependency).
+    const toBlobURL = async (url, type) => {
+      const buf = await (await fetch(url)).arrayBuffer();
+      return URL.createObjectURL(new Blob([buf], { type }));
+    };
+    const fetchFile = async (url) => new Uint8Array(await (await fetch(url)).arrayBuffer());
+
+    log('SharedArrayBuffer available: ' + (typeof SharedArrayBuffer !== 'undefined'));
+    log('crossOriginIsolated: ' + window.crossOriginIsolated);
+
+    document.getElementById('run').onclick = async () => {
+      const ffmpeg = new FFmpeg();
+      ffmpeg.on('log', ({ message }) => log(message));
+      ffmpeg.on('progress', ({ progress, time }) =>
+        setStatus(`progress ${(progress * 100).toFixed(1)}%  (encoded ${(time/1e6).toFixed(2)}s)`));
+
+      try {
+        setStatus('Loading ffmpeg core…');
+        const t0 = performance.now();
+        // No classWorkerURL: ffmpeg.js is same-origin, so it auto-loads
+        // 814.ffmpeg.js as a *classic* worker where importScripts (needed for the
+        // UMD core) works. A classWorkerURL forces a module worker, which can't.
+        await ffmpeg.load({
+          coreURL: await toBlobURL('/vendor/core/ffmpeg-core.js', 'text/javascript'),
+          wasmURL: await toBlobURL('/vendor/core/ffmpeg-core.wasm', 'application/wasm'),
+        });
+        log(`core loaded in ${((performance.now() - t0)/1000).toFixed(1)}s`);
+
+        setStatus('Fetching clip…');
+        await ffmpeg.writeFile('in.ts', await fetchFile('assets/clip6.ts'));
+
+        setStatus('Transcoding…');
+        const tEnc = performance.now();
+        await ffmpeg.exec([
+          '-i', 'in.ts',
+          '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p',
+          '-an',
+          'out.mp4',
+        ]);
+        const encSec = (performance.now() - tEnc) / 1000;
+        const data = await ffmpeg.readFile('out.mp4');
+        const srcDur = 6.0, fps = 90, frames = srcDur * fps;
+        log(`\n=== transcoded ${srcDur}s clip in ${encSec.toFixed(1)}s ` +
+            `→ ${(srcDur/encSec).toFixed(2)}x realtime, ${(frames/encSec).toFixed(0)} fps ===`);
+        log(`output size: ${(data.length/1e6).toFixed(1)} MB`);
+        setStatus(`DONE — ${(srcDur/encSec).toFixed(2)}x realtime`);
+        document.getElementById('out').src =
+          URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
+      } catch (err) {
+        log('ERROR: ' + (err?.message || err));
+        setStatus('ERROR');
+        console.error(err);
+      }
+    };
+  </script>
+</body>
+</html>

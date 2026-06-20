@@ -1,207 +1,16 @@
 /* ============================================================
-   export-video.js — Record video + timer overlay to a file
+   export-video.js — Record video + timer overlay to a file (WebCodecs path)
+   ============================================================
+
+   Captures the on-screen player frame-by-frame and burns in the race-timer
+   overlay, encoding to WebM via WebCodecs (hardware VP9, up to 4× realtime) or
+   MediaRecorder (1× fallback). The overlay itself is drawn by the shared
+   OverlayRender module so it stays identical to the ffmpeg export path.
+
+   For a player-free, background export to H.264 MP4 see export-ffmpeg.js.
    ============================================================ */
 
 const ExportVideo = (() => {
-  function fmtMs(s) {
-    if (s == null || isNaN(s) || !isFinite(s)) return '--:--.---';
-    // Integer-ms math so rounding carries into seconds (29.9995 → 0:30.000).
-    const total = Math.round(s * 1000);
-    const ms    = total % 1000;
-    const secs  = Math.floor(total / 1000);
-    const m     = Math.floor(secs / 60);
-    return `${m}:${String(secs % 60).padStart(2,'0')}.${String(ms).padStart(3,'0')}`;
-  }
-
-  function fmtParts(s) {
-    if (s == null || isNaN(s)) return { main: '--:--', frac: '.---' };
-    const total = Math.round(s * 1000);
-    const ms    = total % 1000;
-    const secs  = Math.floor(total / 1000);
-    return {
-      main: `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2,'0')}`,
-      frac: `.${String(ms).padStart(3,'0')}`,
-    };
-  }
-
-  function getActiveLapIdx(laps, t) {
-    for (let i = 0; i < laps.length; i++) {
-      const l = laps[i];
-      if (t >= l.startTime && (l.endTime == null || t < l.endTime)) return i;
-    }
-    return -1;
-  }
-
-  // Actual rendered content rect of the video (accounting for object-fit: contain)
-  function videoContentRect(videoEl) {
-    const vW = videoEl.videoWidth;
-    const vH = videoEl.videoHeight;
-    const r  = videoEl.getBoundingClientRect();
-    if (!vW || !vH) return r;
-    const vAspect = vW / vH;
-    const eAspect = r.width / r.height;
-    let cW, cH, cX, cY;
-    if (vAspect > eAspect) {
-      cW = r.width;  cH = r.width / vAspect;
-      cX = r.left;   cY = r.top + (r.height - cH) / 2;
-    } else {
-      cH = r.height; cW = r.height * vAspect;
-      cX = r.left + (r.width - cW) / 2; cY = r.top;
-    }
-    return { left: cX, top: cY, width: cW, height: cH };
-  }
-
-  function drawOverlay(ctx, videoEl, overlayEl, t, laps, fastestIds, groupSize, fastTotal) {
-    if (!overlayEl || overlayEl.classList.contains('hidden') || laps.length === 0) return;
-
-    const vW     = videoEl.videoWidth;
-    const vH     = videoEl.videoHeight;
-    const cRect  = videoContentRect(videoEl);
-    const wRect  = overlayEl.parentElement.getBoundingClientRect();
-
-    const oLeft  = parseFloat(overlayEl.style.left) || 12;
-    const oTop   = parseFloat(overlayEl.style.top)  || 12;
-    const scaleX = vW / cRect.width;
-    const scaleY = vH / cRect.height;
-    const scale  = (scaleX + scaleY) / 2;
-
-    const cx = (wRect.left + oLeft - cRect.left) * scaleX;
-    const cy = (wRect.top  + oTop  - cRect.top)  * scaleY;
-    const fs = (parseFloat(overlayEl.style.fontSize) || 14) * scale;
-
-    const raceT = Math.max(0, t - laps[0].startTime);
-    const { main, frac } = fmtParts(raceT);
-
-    const activeIdx = getActiveLapIdx(laps, t);
-    const visible   = [];
-    for (let i = 0; i < laps.length; i++) {
-      const lap = laps[i];
-      const isCurrent = i === activeIdx;
-      if (isCurrent || (lap.endTime != null && t >= lap.endTime)) {
-        visible.push({ lap, idx: i, isCurrent });
-      }
-    }
-    const rows       = visible.slice(-5).reverse();
-    const hasFastest = fastestIds && fastestIds.size > 0 && fastTotal != null;
-
-    const mainFs  = fs * 2.8;
-    const fracFs  = fs * 1.65;
-    const numFs   = fs * 0.88;
-    const splitFs = fs * 1.1;
-    const fastFs  = fs * 0.9;
-    const lineH   = splitFs * 1.6;
-    const padX    = fs * 0.8;
-    const padYT   = fs * 0.35;
-    const padYB   = fs * 0.35;
-
-    ctx.save();
-
-    // Measure box width
-    ctx.font = `bold ${mainFs}px "Courier New",monospace`;
-    const mainW = ctx.measureText(main).width;
-    ctx.font = `bold ${fracFs}px "Courier New",monospace`;
-    let boxW = mainW + ctx.measureText(frac).width + padX * 2;
-
-    rows.forEach(({ lap, idx, isCurrent }) => {
-      const dur = isCurrent ? Math.max(0, t - lap.startTime) : lap.endTime - lap.startTime;
-      ctx.font = `bold ${numFs}px "Courier New",monospace`;
-      const nw = ctx.measureText(`L${idx + 1}`).width;
-      ctx.font = `bold ${splitFs}px "Courier New",monospace`;
-      const rowW = nw + ctx.measureText(fmtMs(dur)).width + fs * 0.6 + padX * 2;
-      if (rowW > boxW) boxW = rowW;
-    });
-    if (hasFastest) {
-      ctx.font = `bold ${fastFs}px "Courier New",monospace`;
-      const fw = ctx.measureText(`Best ${groupSize}: ${fmtMs(fastTotal)}`).width + padX * 2;
-      if (fw > boxW) boxW = fw;
-    }
-
-    const mainRowH = mainFs * 1.05;
-    const splitsH  = rows.length > 0 ? rows.length * lineH + padYT : 0;
-    const fastRowH = hasFastest ? fastFs * 2 : 0;
-    const boxH     = padYT + mainRowH + splitsH + fastRowH + padYB;
-
-    // Background
-    ctx.fillStyle = 'rgba(6,7,10,0.90)';
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(cx, cy, boxW, boxH, 2);
-    else ctx.rect(cx, cy, boxW, boxH);
-    ctx.fill();
-
-    // Left green border
-    ctx.fillStyle = '#00e060';
-    ctx.fillRect(cx, cy, Math.max(3, 3 * scaleX), boxH);
-
-    // Main time
-    const baseX = cx + padX;
-    let curY = cy + padYT + mainFs * 0.88;
-
-    ctx.font        = `bold ${mainFs}px "Courier New",monospace`;
-    ctx.fillStyle   = '#ffffff';
-    ctx.shadowColor = 'rgba(0,230,96,0.25)';
-    ctx.shadowBlur  = mainFs * 0.3;
-    ctx.fillText(main, baseX, curY);
-    ctx.shadowBlur  = 0;
-
-    ctx.font = `bold ${mainFs}px "Courier New",monospace`;
-    const mainTextW = ctx.measureText(main).width;
-    ctx.font      = `bold ${fracFs}px "Courier New",monospace`;
-    ctx.fillStyle = 'rgba(195,210,220,0.70)';
-    ctx.fillText(frac, baseX + mainTextW, curY);
-
-    curY += mainRowH * 0.17;
-
-    // Splits
-    if (rows.length > 0) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-      ctx.lineWidth   = Math.max(1, scaleX * 0.5);
-      ctx.beginPath(); ctx.moveTo(cx, curY); ctx.lineTo(cx + boxW, curY); ctx.stroke();
-      curY += padYT;
-
-      rows.forEach(({ lap, idx, isCurrent }) => {
-        const dur       = isCurrent ? Math.max(0, t - lap.startTime) : lap.endTime - lap.startTime;
-        const isFastest = fastestIds && fastestIds.has(lap.id);
-        curY += lineH;
-
-        ctx.font      = `bold ${numFs}px "Courier New",monospace`;
-        ctx.fillStyle = isFastest ? 'rgba(0,224,96,0.7)'
-                      : isCurrent ? 'rgba(255,225,70,0.65)'
-                      : 'rgba(130,148,165,0.65)';
-        ctx.fillText(`L${idx + 1}`, baseX, curY);
-        const nw = ctx.measureText(`L${idx + 1}`).width;
-
-        ctx.font = `bold ${splitFs}px "Courier New",monospace`;
-        if (isFastest) {
-          ctx.fillStyle   = '#00e060';
-          ctx.shadowColor = 'rgba(0,224,96,0.85)';
-          ctx.shadowBlur  = splitFs * 0.4;
-        } else {
-          ctx.fillStyle = isCurrent ? '#ffe040' : 'rgba(195,212,225,0.88)';
-        }
-        ctx.fillText(fmtMs(dur), baseX + nw + fs * 0.5, curY);
-        ctx.shadowBlur = 0;
-      });
-    }
-
-    // Best N row
-    if (hasFastest) {
-      curY += padYT;
-      ctx.strokeStyle = 'rgba(0,224,96,0.25)';
-      ctx.lineWidth   = Math.max(1, scaleX * 0.5);
-      ctx.beginPath(); ctx.moveTo(cx, curY); ctx.lineTo(cx + boxW, curY); ctx.stroke();
-
-      curY += fastFs * 1.2;
-      ctx.font        = `bold ${fastFs}px "Courier New",monospace`;
-      ctx.fillStyle   = '#00e060';
-      ctx.shadowColor = 'rgba(0,224,96,0.9)';
-      ctx.shadowBlur  = fastFs * 0.5;
-      ctx.fillText(`Best ${groupSize}: ${fmtMs(fastTotal)}`, baseX, curY);
-      ctx.shadowBlur = 0;
-    }
-
-    ctx.restore();
-  }
-
   // ── Helpers ───────────────────────────────────────────────
 
   function setStatus(text) {
@@ -213,17 +22,6 @@ const ExportVideo = (() => {
     const url = URL.createObjectURL(blob);
     Object.assign(document.createElement('a'), { href: url, download: filename }).click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
-  }
-
-  // Seconds of media buffered ahead of the playhead. For a .ts via mpegts.js
-  // this is the SourceBuffer range; at high playback rates it shrinks fast.
-  function bufferedAhead(v) {
-    for (let i = 0; i < v.buffered.length; i++) {
-      if (v.currentTime >= v.buffered.start(i) - 0.25 && v.currentTime <= v.buffered.end(i) + 0.25) {
-        return v.buffered.end(i) - v.currentTime;
-      }
-    }
-    return 0;
   }
 
   // ── Fast path: WebCodecs + webm-muxer (hardware VP9, 4× realtime) ─────────
@@ -264,6 +62,11 @@ const ExportVideo = (() => {
     const muxer  = new Muxer({
       target,
       video: { codec: 'V_VP9', width: canvas.width, height: canvas.height },
+      // Capture starts mid-stream (the playhead has advanced past 0 by the time
+      // the first frame is encoded), so the first chunk's timestamp isn't 0.
+      // 'offset' rebases timestamps to start at 0; the default 'strict' throws on
+      // every chunk, flooding errors and freezing the tab.
+      firstTimestampBehavior: 'offset',
     });
 
     let encodeErr = null;
@@ -290,11 +93,21 @@ const ExportVideo = (() => {
     // frozen. A watchdog watches readyState and steps the rate down until
     // playback is sustainable — guaranteeing progress on any footage/hardware.
     const RATE_STEPS = [4, 3, 2, 1.5, 1];
-    let rateIdx = 0, stallStreak = 0;
+    let rateIdx = 0, stallStreak = 0, lastCt = -1, stuckStreak = 0;
+    let finishLoop = null;
     videoEl.playbackRate = RATE_STEPS[0];
     setStatus(`Encoding at ${RATE_STEPS[0]}× speed…`);
     watchdog = setInterval(() => {
-      if (stopped || videoEl.paused) { stallStreak = 0; return; }
+      if (stopped || videoEl.paused) { stallStreak = 0; stuckStreak = 0; lastCt = videoEl.currentTime; return; }
+      // EOF fallback: mpegts.js doesn't reliably fire 'ended' at the end of a
+      // sub-blob, so the playhead can stick on the last frame forever. If it
+      // hasn't advanced for ~2.8 s while playing, treat it as done and finalize.
+      if (Math.abs(videoEl.currentTime - lastCt) < 0.02) {
+        if (++stuckStreak >= 4 && finishLoop) { finishLoop(); return; }
+      } else {
+        stuckStreak = 0;
+      }
+      lastCt = videoEl.currentTime;
       if (videoEl.readyState <= 2) {                 // stalled: not enough decoded
         if (++stallStreak >= 2 && rateIdx < RATE_STEPS.length - 1) {
           videoEl.playbackRate = RATE_STEPS[++rateIdx];
@@ -307,6 +120,7 @@ const ExportVideo = (() => {
     }, 700);
 
     await new Promise(resolve => {
+      finishLoop = resolve;
       async function onFrame(_, { mediaTime }) {
         if (stopped) { resolve(); return; }
         draw(mediaTime);
@@ -318,17 +132,15 @@ const ExportVideo = (() => {
         }
         if (videoEl.ended) { resolve(); return; }
 
-        // Pace the capture. At 4× a .ts drains mpegts's lazy buffer faster than
-        // it can reload, and a slow encoder lets its queue grow without bound —
-        // either stalls playback for seconds (the "freeze"). When the buffer
-        // runs low or the encoder falls behind, pause and let them catch up.
-        if (encoder.encodeQueueSize > 8 || bufferedAhead(videoEl) < 1.5) {
+        // Encoder backpressure: if encoding falls behind, pause capture until the
+        // queue drains so it can't grow without bound (memory) and freeze the tab.
+        // Buffer starvation is handled separately by the rate watchdog (a starved
+        // buffer drops readyState, which steps the speed down). The queue drains
+        // quickly, so this never stalls near EOF.
+        if (encoder.encodeQueueSize > 8) {
           videoEl.pause();
-          const t0 = performance.now();
-          while (!stopped &&
-                 (encoder.encodeQueueSize > 2 || bufferedAhead(videoEl) < 4) &&
-                 performance.now() - t0 < 4000) {        // cap so EOF can't deadlock
-            await new Promise(r => setTimeout(r, 25));
+          while (!stopped && encoder.encodeQueueSize > 2) {
+            await new Promise(r => setTimeout(r, 20));
           }
           if (stopped) { resolve(); return; }
           try { await videoEl.play(); } catch (_) {}
@@ -444,13 +256,17 @@ const ExportVideo = (() => {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
 
+    // Geometry is computed lazily on the first draw — by then the overlay has been
+    // un-hidden below, so its element reports a real (non-zero) rect.
+    let geom = null;
     const draw = t => {
       ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-      drawOverlay(ctx, videoEl, overlayEl, t + timeOffset, laps, fastestIds, groupSize, fastTotal);
+      if (!geom) geom = OverlayRender.overlayGeometry(videoEl, overlayEl);
+      OverlayRender.drawOverlay(ctx, geom, t + timeOffset, laps, fastestIds, groupSize, fastTotal);
     };
 
     // "Export w/ Overlay" must include the overlay even when the on-screen
-    // toggle is off. drawOverlay reads the element's live geometry, so the
+    // toggle is off. overlayGeometry reads the element's live geometry, so the
     // element has to be visible (display:none reports a zero-size rect).
     const overlayWasHidden = overlayEl.classList.contains('hidden');
     if (overlayWasHidden) overlayEl.classList.remove('hidden');

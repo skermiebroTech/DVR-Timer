@@ -608,5 +608,5 @@ const VideoPlayer = (() => {
   return { init, loadFile, prepareForLoad, setDuration, setSeekOverride, setTimeOffset,
            setFrameDuration, seekTo, togglePlayPause, stepFrame, getCurrentTime,
            showSeekCanvas, hideSeekCanvas, setLapSplits, setFastestIds,
-           getFastestIds, getTimeOffset };
+           getFastestIds, getTimeOffset, getDurationSec: effectiveDuration };
 })();

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ffmpeg overlay-export pipeline test</title>
+  <style>
+    body { font: 14px/1.5 monospace; background: #0b0d10; color: #d6e0e8; padding: 20px; }
+    button { font: inherit; padding: 8px 16px; background: #00e060; border: 0; border-radius: 4px; cursor: pointer; }
+    #log { white-space: pre-wrap; margin-top: 16px; max-height: 40vh; overflow: auto; border: 1px solid #243; padding: 10px; }
+    .stat { color: #ffe040; margin-top: 8px; }
+    .bar { height: 8px; background: #243; border-radius: 4px; margin-top: 6px; overflow: hidden; }
+    .bar > div { height: 100%; width: 0; background: #00e060; transition: width .2s; }
+    video { max-width: 640px; margin-top: 12px; display: block; }
+  </style>
+</head>
+<body>
+  <h2>ffmpeg overlay-export pipeline test</h2>
+  <p>Composites the race-timer overlay (from <code>assets/laps.json</code>) over
+     <code>assets/clip45.ts</code> via ffmpeg.wasm → MP4. Trimmed to 30 s so lap 1
+     (21.7 s → 40.7 s) appears and completes.</p>
+  <button id="run">Run export</button>
+  <div id="status" class="stat"></div>
+  <div class="bar"><div id="bar"></div></div>
+  <div id="log"></div>
+  <video id="out" controls></video>
+
+  <script src="/js/overlay-render.js"></script>
+  <script src="/vendor/ffmpeg/ffmpeg.js"></script>
+  <script src="/js/export-ffmpeg.js"></script>
+  <script>
+    const logEl = document.getElementById('log');
+    const log = (m) => { logEl.textContent += m + '\n'; logEl.scrollTop = logEl.scrollHeight; };
+    const setStatus = (m) => { document.getElementById('status').textContent = m; };
+    const setBar = (f) => { document.getElementById('bar').style.width = (f*100).toFixed(0) + '%'; };
+
+    log('crossOriginIsolated: ' + window.crossOriginIsolated +
+        '  (SAB: ' + (typeof SharedArrayBuffer !== 'undefined') + ')');
+
+    document.getElementById('run').onclick = async () => {
+      try {
+        setStatus('Loading inputs…');
+        const [tsBlob, lapsJson] = await Promise.all([
+          fetch('assets/clip45.ts').then(r => r.blob()),
+          fetch('assets/laps.json').then(r => r.json()),
+        ]);
+        const sourceFile = new File([tsBlob], 'clip45.ts', { type: 'video/mp2t' });
+        const laps = lapsJson.laps;
+
+        // Fastest-group of 3 (matches the app default) for the "Best 3" row.
+        const groupSize = 3;
+        let bestTotal = Infinity, bestIds = new Set();
+        for (let i = 0; i + groupSize <= laps.length; i++) {
+          const slice = laps.slice(i, i + groupSize);
+          if (slice.some(l => l.endTime == null)) continue;
+          const tot = slice.reduce((s, l) => s + (l.endTime - l.startTime), 0);
+          if (tot < bestTotal) { bestTotal = tot; bestIds = new Set(slice.map(l => l.id)); }
+        }
+        const fastTotal = isFinite(bestTotal) ? bestTotal : null;
+
+        // Geometry as the app would compute for a 1280-wide source rendered at
+        // ~half size: overlay near top-left, scale ~2×.
+        const geom = { cx: 40, cy: 28, fs: 22, scaleX: 2, scaleY: 2, scale: 2 };
+
+        const t0 = performance.now();
+        const blob = await ExportFfmpeg.run({
+          sourceFile, laps, fastestIds: bestIds, fastTotal, groupSize, geom,
+          width: 1280, height: 720,
+          durationSec: 45, trimSec: 30, overlayFps: 30,
+          onStatus: (m) => { setStatus(m); log(m); },
+          onProgress: (f) => { setBar(f); setStatus('Encoding… ' + (f*100).toFixed(0) + '%'); },
+          onLog: (m) => log('[ff] ' + m),
+        });
+        const sec = (performance.now() - t0) / 1000;
+        if (!blob) { setStatus('cancelled'); return; }
+        log(`\n=== exported 30s in ${sec.toFixed(1)}s → ${(30/sec).toFixed(2)}x realtime ===`);
+        log(`output: ${(blob.size/1e6).toFixed(1)} MB`);
+        setStatus(`DONE — ${(30/sec).toFixed(2)}x realtime, ${(blob.size/1e6).toFixed(1)} MB`);
+        setBar(1);
+        document.getElementById('out').src = URL.createObjectURL(blob);
+      } catch (err) {
+        log('ERROR: ' + (err?.message || err));
+        setStatus('ERROR');
+        console.error(err);
+      }
+    };
+  </script>
+</body>
+</html>

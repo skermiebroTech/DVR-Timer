@@ -652,6 +652,14 @@ body {
   flex-shrink: 0;
 }
 
+.export-progress-body { display: flex; flex-direction: column; gap: 6px; min-width: 180px; }
+
+/* Determinate progress bar — only shown for the background (ffmpeg) export,
+   which reports real percentages. The WebCodecs path leaves it hidden. */
+.export-progress-track { display: none; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.export-progress.ffmpeg-mode .export-progress-track { display: block; }
+#export-progress-bar { height: 100%; width: 0; background: var(--green); transition: width 0.25s ease; }
+
 /* ---------- Utilities ---------- */
 .hidden { display: none !important; }
 

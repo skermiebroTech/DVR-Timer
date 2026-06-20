@@ -87,7 +87,8 @@ Shortcuts are disabled when an input field is focused.
 - **Export JSON** — saves all laps with raw timestamps (seconds). Use this to resume a session.
 - **Export CSV** — saves laps in a spreadsheet-friendly format with both raw seconds and formatted times.
 - **Import JSON** — loads a previously exported JSON file, replacing the current session.
-- **Export w/ Overlay** — renders the video with the LiveSplit-style race timer overlay burned in and downloads it as a WebM (VP9). When the browser supports WebCodecs it encodes hardware-accelerated at ~4× speed; otherwise it falls back to a 1×-speed `MediaRecorder` capture.
+- **Export w/ Overlay** — renders the video with the LiveSplit-style race timer overlay burned in and downloads it as a WebM (VP9). When the browser supports WebCodecs it encodes hardware-accelerated at ~4× speed; otherwise it falls back to a 1×-speed `MediaRecorder` capture. This path drives the on-screen player to capture frames, so the player is busy while it runs.
+- **Export MP4 (background)** — encodes an H.264 **MP4** entirely off the player using a self-hosted [ffmpeg.wasm](https://github.com/ffmpegwasm/ffmpeg.wasm) (in `vendor/`). The source file is mounted lazily (WORKERFS) so even multi-GB `.ts` files are read in slices rather than copied into memory, ffmpeg decodes/composites/encodes, and a real progress bar tracks it — leaving the player free to keep scrubbing and marking laps. Encoded at **CRF 18 (visually lossless)** so the footage isn't re-crushed, 30 fps (HDZero records 90 fps; the burned-in timer stays millisecond-exact at every frame). The **resolution** dropdown next to the button keeps source resolution or upscales to **1080p / 4K**, re-rendering the overlay crisply at that resolution (not stretching the composited frame). It is slower than the WebCodecs path (single-threaded wasm, ~0.5–0.6× realtime at source res; 1080p/4K are considerably slower) but produces a widely-compatible MP4 and decodes the TS correctly in every browser. The overlay itself is drawn by the same renderer (`js/overlay-render.js`) both paths share, so the burned-in times are identical.
 
 ---
 
@@ -103,4 +104,6 @@ Lap data is automatically saved to `localStorage` after every change. If you clo
 
 2. **Large files** — Very large video files (several GB) are loaded into a blob URL in the browser's memory. Performance depends on available RAM and the browser's media pipeline.
 
-3. **Overlay export** — "Export w/ Overlay" re-encodes to VP9 WebM. The fast (WebCodecs) path requires a Chromium-based browser; other browsers fall back to a slower 1×-speed capture. The source video is otherwise never modified.
+3. **Overlay export** — Two options, both burning in the same overlay: "Export w/ Overlay" re-encodes to VP9 WebM (fast WebCodecs path needs a Chromium-based browser; otherwise a slower 1× capture) and uses the player; "Export MP4 (background)" re-encodes to H.264 MP4 with ffmpeg.wasm off the player but is slower (single-threaded wasm). The source video is never modified.
+
+4. **Bundled ffmpeg.wasm** — the background MP4 export needs the files under `vendor/` (a ~32 MB wasm core). They are committed so the app stays self-contained and offline-capable; the core is fetched lazily only on the first MP4 export.
