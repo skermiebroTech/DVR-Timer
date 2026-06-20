@@ -7,12 +7,14 @@ document.addEventListener('DOMContentLoaded', () => {
   VideoPlayer.init();
   Timeline.init();
   Laps.init(Storage.load());
-  // Keep the overlay splits panel + header buttons in sync with the lap table
+  // Keep the overlay splits, timeline markers + header buttons in sync with laps
   Laps.setOnChange(laps => {
     VideoPlayer.setLapSplits(laps);
+    Timeline.setLaps(laps);
     refreshLapButtons(laps);
   });
   VideoPlayer.setLapSplits(Laps.getLaps()); // seed with any restored laps
+  Timeline.setLaps(Laps.getLaps());
   refreshLapButtons(Laps.getLaps());
 
   // Export/Clear act on lap data — disable them when there are no laps so it's

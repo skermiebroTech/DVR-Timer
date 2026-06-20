@@ -21,7 +21,7 @@
 const Timeline = (() => {
   const THUMB_W = 160;           // offscreen thumbnail width (height follows aspect)
 
-  let timelineEl, trackEl, stripEl, shadeLeft, shadeRight, regionEl;
+  let timelineEl, trackEl, stripEl, shadeLeft, shadeRight, regionEl, markersEl;
   let handleLeft, handleRight, playheadEl, rangeLabel, resetBtn, videoEl;
   let durationProvider = () => 0;
 
@@ -32,6 +32,9 @@ const Timeline = (() => {
 
   let trimStart = 0;             // in-point  as a fraction of duration
   let trimEnd   = 1;             // out-point as a fraction of duration
+
+  let lapList       = [];        // current laps, for rendering boundary markers
+  let lastMarkerDur = -1;        // duration the markers were last positioned for
 
   let thumbCanvas = null, thumbCtx = null;
 
@@ -181,6 +184,39 @@ const Timeline = (() => {
     if (resetBtn) resetBtn.disabled = !isTrimmed();
   }
 
+  // ── Lap markers ─────────────────────────────────────────────────────────────
+  // A numbered tick at every lap boundary — each lap's start, plus the final
+  // lap's end. Positioned by absolute file time / duration, the same scale as the
+  // playhead, so they survive the async .ts duration parse (re-rendered once it
+  // lands). Purely visual: the layer is pointer-events:none so track clicks still
+  // seek through it.
+  function renderMarkers() {
+    if (!markersEl) return;
+    const d = durationProvider();
+    lastMarkerDur = d;
+    if (!d || !lapList.length) { markersEl.innerHTML = ''; return; }
+
+    const pct = (sec) => (Math.min(1, Math.max(0, sec / d)) * 100).toFixed(3);
+    let html = '';
+    lapList.forEach((lap, i) => {
+      if (lap.startTime == null || lap.startTime < 0 || lap.startTime > d + 0.001) return;
+      html += `<div class="tl-marker" style="left:${pct(lap.startTime)}%" title="Lap ${i + 1} start">` +
+              `<span class="tl-marker-flag">${i + 1}</span></div>`;
+    });
+    const last = lapList[lapList.length - 1];
+    if (last && last.endTime != null && last.endTime >= 0 && last.endTime <= d + 0.001) {
+      html += `<div class="tl-marker tl-marker-end" style="left:${pct(last.endTime)}%" title="Race end"></div>`;
+    }
+    markersEl.innerHTML = html;
+  }
+
+  // Called by app.js (via Laps.setOnChange) whenever laps change.
+  function setLaps(newLaps) {
+    lapList = newLaps || [];
+    lastMarkerDur = -1;   // force a rebuild regardless of the current duration
+    renderMarkers();
+  }
+
   // ── Pointer interaction ─────────────────────────────────────────────────────
 
   function fracFromClientX(x) {
@@ -237,6 +273,9 @@ const Timeline = (() => {
       playheadEl.style.left = (Math.max(0, Math.min(1, t / d)) * 100) + '%';
     }
     if (mode === 'progressive') captureProgressive(t, d);
+    // Reposition markers when the duration changes (native metadata arriving, or
+    // the .ts PTS duration landing async). No-op once it's stable.
+    if (durationProvider() !== lastMarkerDur) renderMarkers();
     updateLabel(); // refresh once the async .ts duration lands
   }
 
@@ -286,6 +325,8 @@ const Timeline = (() => {
     trimEnd = 1;
     buildSlots(pickCount());
     render();
+    lastMarkerDur = -1;   // re-place markers once the new clip's duration is known
+    renderMarkers();
     const isTs = (typeof Transcoder !== 'undefined' && Transcoder.isTsFile && Transcoder.isTsFile(file));
     if (isTs) {
       mode = 'progressive';           // offscreen decode unavailable for .ts
@@ -304,6 +345,8 @@ const Timeline = (() => {
     slots = [];
     if (stripEl) stripEl.innerHTML = '';
     if (playheadEl) playheadEl.style.left = '0%';
+    lastMarkerDur = -1;
+    if (markersEl) markersEl.innerHTML = '';   // clear now; re-rendered on next load
     render();
   }
 
@@ -314,6 +357,7 @@ const Timeline = (() => {
     shadeLeft   = byId('tl-shade-left');
     shadeRight  = byId('tl-shade-right');
     regionEl    = byId('tl-region');
+    markersEl   = byId('tl-markers');
     handleLeft  = byId('tl-handle-left');
     handleRight = byId('tl-handle-right');
     playheadEl  = byId('tl-playhead');
@@ -333,5 +377,5 @@ const Timeline = (() => {
     render();
   }
 
-  return { init, load, reset, getTrim, onTimeUpdate, setInToCurrent, setOutToCurrent, resetTrim };
+  return { init, load, reset, getTrim, onTimeUpdate, setLaps, setInToCurrent, setOutToCurrent, resetTrim };
 })();

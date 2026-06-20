@@ -495,6 +495,36 @@ body {
   z-index: 3;
 }
 
+/* Lap markers — a tick at every lap boundary (start of each lap + race end),
+   purely visual; clicks fall through to the track to seek. */
+.tl-markers { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+
+.tl-marker {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--yellow);
+  box-shadow: 0 0 4px rgba(0,0,0,.55);
+}
+
+.tl-marker-flag {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--yellow);
+  color: #14161f;
+  font: 700 9px/1 'Segoe UI', system-ui, sans-serif;
+  padding: 2px 4px;
+  border-radius: 0 0 3px 3px;
+  white-space: nowrap;
+}
+
+/* Race-end boundary (the final lap's end) — distinct from lap starts */
+.tl-marker-end { background: var(--green); }
+.tl-marker-end .tl-marker-flag { background: var(--green); }
+
 .timeline-info {
   display: flex;
   align-items: center;
