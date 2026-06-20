@@ -17,7 +17,7 @@
    ============================================================ */
 
 const ExportFfmpeg = (() => {
-  const CORE_ST_DIR = '/vendor/core';   // self-hosted single-thread ffmpeg.wasm core
+  const CORE_ST_DIR = 'vendor/core';    // self-hosted single-thread ffmpeg.wasm core (relative: works under a Pages subpath)
 
   let ffmpeg      = null;   // cached FFmpeg instance (core load is ~32 MB)
   let cancelled   = false;
@@ -26,6 +26,17 @@ const ExportFfmpeg = (() => {
 
   // Registered by app.js whenever a video is loaded.
   function setSource(file) { sourceFile = file || null; }
+
+  // Source file name without its extension, sanitized for use in a download
+  // filename. Shared by every export path (JSON/CSV/WebM/MP4) so outputs are
+  // named after the clip they came from. Returns null when no clip is loaded.
+  function sourceBaseName() {
+    if (!sourceFile || !sourceFile.name) return null;
+    return sourceFile.name
+      .replace(/\.[^/.]+$/, '')        // drop extension
+      .replace(/[/\\?%*:|"<>]/g, '_')  // strip filesystem-unsafe chars
+      .trim() || null;
+  }
 
   // ── tiny @ffmpeg/util equivalents (avoid an extra dependency) ─────────────
   const toBlobURL = async (url, type) => {
@@ -340,7 +351,7 @@ const ExportFfmpeg = (() => {
       });
       if (blob) {
         setStatus('Done — downloading…');
-        triggerDownload(blob, 'race-overlay.mp4');
+        triggerDownload(blob, `${sourceBaseName() || 'race'}-overlay.mp4`);
       } else {
         setStatus('Cancelled.');
       }
@@ -356,5 +367,5 @@ const ExportFfmpeg = (() => {
     }
   }
 
-  return { start, cancel, setSource, run, load };
+  return { start, cancel, setSource, sourceBaseName, run, load };
 })();

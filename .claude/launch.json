@@ -6,6 +6,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["server.py", "3848"],
       "port": 3848
+    },
+    {
+      "name": "dvr-subpath",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-c", "import os,sys; os.chdir('..'); sys.argv=['s','3849']; exec(open('DVR-Timer/server.py').read())"],
+      "port": 3849
     }
   ]
 }

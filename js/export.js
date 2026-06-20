@@ -20,7 +20,7 @@ const Export = (() => {
       laps: Laps.getLaps()
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    downloadBlob(blob, `race-laps-${dateStamp()}.json`);
+    downloadBlob(blob, `${baseName()}-laps-${dateStamp()}.json`);
   }
 
   function toCSV() {
@@ -42,7 +42,7 @@ const Export = (() => {
     });
     const csv = rows.map(r => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
-    downloadBlob(blob, `race-laps-${dateStamp()}.csv`);
+    downloadBlob(blob, `${baseName()}-laps-${dateStamp()}.csv`);
   }
 
   function fromJSON(file) {
@@ -72,6 +72,12 @@ const Export = (() => {
   function dateStamp() {
     const d = new Date();
     return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  // Prefix exports with the loaded source clip's name (falling back to 'race'
+  // when none is loaded). ExportFfmpeg owns the source File.
+  function baseName() {
+    return (typeof ExportFfmpeg !== 'undefined' && ExportFfmpeg.sourceBaseName()) || 'race';
   }
 
   return { toJSON, toCSV, fromJSON };

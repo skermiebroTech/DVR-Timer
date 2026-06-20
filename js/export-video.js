@@ -24,6 +24,11 @@ const ExportVideo = (() => {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 
+  // Output files are named after the loaded source clip (falling back to 'race'
+  // when no clip name is available). ExportFfmpeg owns the source File.
+  const baseName = () =>
+    (typeof ExportFfmpeg !== 'undefined' && ExportFfmpeg.sourceBaseName()) || 'race';
+
   // ── Fast path: WebCodecs + webm-muxer (hardware VP9, 4× realtime) ─────────
 
   // Pick a VP9 level that fits the resolution, then confirm the encoder
@@ -171,7 +176,7 @@ const ExportVideo = (() => {
     await encoder.flush();
     encoder.close();
     muxer.finalize();
-    triggerDownload(new Blob([target.buffer], { type: 'video/webm' }), 'race-overlay.webm');
+    triggerDownload(new Blob([target.buffer], { type: 'video/webm' }), `${baseName()}-overlay.webm`);
     progressEl?.classList.add('hidden');
   }
 
@@ -206,7 +211,7 @@ const ExportVideo = (() => {
         if (chunks.length) {
           const mime = recorder.mimeType || 'video/webm';
           triggerDownload(new Blob(chunks, { type: mime }),
-            `race-overlay.${mime.includes('mp4') ? 'mp4' : 'webm'}`);
+            `${baseName()}-overlay.${mime.includes('mp4') ? 'mp4' : 'webm'}`);
         }
         resolve();
       };
