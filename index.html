@@ -58,6 +58,11 @@
               <option value="1080">1080p</option>
               <option value="2160">4K</option>
             </select>
+            <select id="export-fps" class="select-sm" title="Output frame rate for the MP4 and Timer Only exports. Higher fps = smoother timer but more frames to render/encode (slower). The burned-in time is millisecond-exact at every fps.">
+              <option value="30" selected>30 fps</option>
+              <option value="60">60 fps</option>
+              <option value="90">90 fps</option>
+            </select>
             <label class="toggle-label">
               <input type="checkbox" id="toggle-overlay" />
               <span>Race Timer Overlay</span>

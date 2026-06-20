@@ -346,6 +346,13 @@ const ExportFfmpeg = (() => {
     const el = document.getElementById('export-status-text');
     if (el) el.textContent = text;
   }
+  // Output frame rate from the toolbar selector (30/60/90); defaults to 30. The
+  // overlay sequence and the encoded video both run at this rate so they stay
+  // 1:1 aligned, and the burned-in time is exact at every frame regardless.
+  function selectedFps() {
+    const v = parseInt(document.getElementById('export-fps')?.value, 10);
+    return (v === 30 || v === 60 || v === 90) ? v : 30;
+  }
   function setProgress(frac) {
     const bar = document.getElementById('export-progress-bar');
     if (bar) bar.style.width = `${Math.round(frac * 100)}%`;
@@ -400,7 +407,7 @@ const ExportFfmpeg = (() => {
         sourceFile, laps, fastestIds, fastTotal, groupSize, geom,
         width: videoEl.videoWidth, height: videoEl.videoHeight,
         durationSec, trimStart, trimEnd,
-        overlayFps: 30,
+        overlayFps: selectedFps(),
         targetHeight,
         onStatus: setStatus,
         onProgress: setProgress,
@@ -457,7 +464,7 @@ const ExportFfmpeg = (() => {
         laps, fastestIds, fastTotal, groupSize, geom,
         width: videoEl.videoWidth, height: videoEl.videoHeight,
         durationSec, trimStart, trimEnd,
-        overlayFps: 30,
+        overlayFps: selectedFps(),
         onStatus: setStatus,
         onProgress: setProgress,
       });
