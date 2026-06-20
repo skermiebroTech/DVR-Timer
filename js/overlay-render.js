@@ -48,6 +48,17 @@ const OverlayRender = (() => {
     return -1;
   }
 
+  // Convert a #rrggbb (or #rgb) hex to an rgba() string with the given alpha.
+  // Used to tint glows/strokes from the customisable accent colour. Falls back
+  // to the default green if the input isn't a valid hex.
+  function hexToRgba(hex, a) {
+    let h = String(hex || '').trim().replace('#', '');
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const n = parseInt(h, 16);
+    if (h.length !== 6 || isNaN(n)) return `rgba(0,224,96,${a})`;
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+
   // Actual rendered content rect of the video (accounting for object-fit: contain)
   function videoContentRect(videoEl) {
     const vW = videoEl.videoWidth;
@@ -94,10 +105,14 @@ const OverlayRender = (() => {
   // precomputed geometry. Does nothing if there are no laps yet. Returns the box
   // rect { x, y, w, h } in native-video pixels (used by the ffmpeg path to crop
   // the overlay image sequence); null when nothing was drawn.
-  function drawOverlay(ctx, geom, t, laps, fastestIds, groupSize, fastTotal) {
+  function drawOverlay(ctx, geom, t, laps, fastestIds, groupSize, fastTotal, colors) {
     if (!geom || !laps || laps.length === 0) return null;
 
     const { cx, cy, fs, scaleX } = geom;
+    // Customisable colours (must mirror the on-screen CSS so burned-in frames
+    // match). Accent = left bar / glow / best-lap highlights; text = main digits.
+    const accent  = (colors && colors.accent) || '#00e060';
+    const textCol = (colors && colors.text)   || '#ffffff';
 
     const raceT = Math.max(0, t - laps[0].startTime);
     const { main, frac } = fmtParts(raceT);
@@ -158,8 +173,8 @@ const OverlayRender = (() => {
     else ctx.rect(cx, cy, boxW, boxH);
     ctx.fill();
 
-    // Left green border
-    ctx.fillStyle = '#00e060';
+    // Left accent border
+    ctx.fillStyle = accent;
     ctx.fillRect(cx, cy, Math.max(3, 3 * scaleX), boxH);
 
     // Main time
@@ -167,8 +182,8 @@ const OverlayRender = (() => {
     let curY = cy + padYT + mainFs * 0.88;
 
     ctx.font        = `bold ${mainFs}px "Courier New",monospace`;
-    ctx.fillStyle   = '#ffffff';
-    ctx.shadowColor = 'rgba(0,230,96,0.25)';
+    ctx.fillStyle   = textCol;
+    ctx.shadowColor = hexToRgba(accent, 0.25);
     ctx.shadowBlur  = mainFs * 0.3;
     ctx.fillText(main, baseX, curY);
     ctx.shadowBlur  = 0;
@@ -194,7 +209,7 @@ const OverlayRender = (() => {
         curY += lineH;
 
         ctx.font      = `bold ${numFs}px "Courier New",monospace`;
-        ctx.fillStyle = isFastest ? 'rgba(0,224,96,0.7)'
+        ctx.fillStyle = isFastest ? hexToRgba(accent, 0.7)
                       : isCurrent ? 'rgba(255,225,70,0.65)'
                       : 'rgba(130,148,165,0.65)';
         ctx.fillText(`L${idx + 1}`, baseX, curY);
@@ -202,8 +217,8 @@ const OverlayRender = (() => {
 
         ctx.font = `bold ${splitFs}px "Courier New",monospace`;
         if (isFastest) {
-          ctx.fillStyle   = '#00e060';
-          ctx.shadowColor = 'rgba(0,224,96,0.85)';
+          ctx.fillStyle   = accent;
+          ctx.shadowColor = hexToRgba(accent, 0.85);
           ctx.shadowBlur  = splitFs * 0.4;
         } else {
           ctx.fillStyle = isCurrent ? '#ffe040' : 'rgba(195,212,225,0.88)';
@@ -216,14 +231,14 @@ const OverlayRender = (() => {
     // Best N row
     if (hasFastest) {
       curY += padYT;
-      ctx.strokeStyle = 'rgba(0,224,96,0.25)';
+      ctx.strokeStyle = hexToRgba(accent, 0.25);
       ctx.lineWidth   = Math.max(1, scaleX * 0.5);
       ctx.beginPath(); ctx.moveTo(cx, curY); ctx.lineTo(cx + boxW, curY); ctx.stroke();
 
       curY += fastFs * 1.2;
       ctx.font        = `bold ${fastFs}px "Courier New",monospace`;
-      ctx.fillStyle   = '#00e060';
-      ctx.shadowColor = 'rgba(0,224,96,0.9)';
+      ctx.fillStyle   = accent;
+      ctx.shadowColor = hexToRgba(accent, 0.9);
       ctx.shadowBlur  = fastFs * 0.5;
       ctx.fillText(`Best ${groupSize}: ${fmtMs(fastTotal)}`, baseX, curY);
       ctx.shadowBlur = 0;

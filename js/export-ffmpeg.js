@@ -110,7 +110,7 @@ const ExportFfmpeg = (() => {
     for (const t of samples) {
       if (t < a || t > b) continue;
       sctx.clearRect(0, 0, width, height);
-      const r = OverlayRender.drawOverlay(sctx, geom, t, laps, fastestIds, groupSize, fastTotal);
+      const r = OverlayRender.drawOverlay(sctx, geom, t, laps, fastestIds, groupSize, fastTotal, opts.colors);
       if (r) { if (r.w > maxW) maxW = r.w; if (r.h > maxH) maxH = r.h; }
     }
     if (maxW === 0) return null; // no laps → no overlay
@@ -153,7 +153,7 @@ const ExportFfmpeg = (() => {
       // Draw the absolutely-positioned box into the crop window.
       ctx.save();
       ctx.translate(-cropX, -cropY);
-      OverlayRender.drawOverlay(ctx, geom, t, laps, fastestIds, groupSize, fastTotal);
+      OverlayRender.drawOverlay(ctx, geom, t, laps, fastestIds, groupSize, fastTotal, opts.colors);
       ctx.restore();
       const buf = new Uint8Array(await (await toPng()).arrayBuffer());
       await ff.writeFile(`/ov/${String(i).padStart(6, '0')}.png`, buf);
@@ -356,6 +356,14 @@ const ExportFfmpeg = (() => {
     const v = parseInt(document.getElementById('export-fps')?.value, 10);
     return (v === 30 || v === 60 || v === 90) ? v : 30;
   }
+  // Current timer colours from the toolbar pickers, passed to the overlay
+  // renderer so the burned-in overlay matches what's shown on screen.
+  function selectedColors() {
+    return {
+      accent: document.getElementById('overlay-accent')?.value || '#00e060',
+      text:   document.getElementById('overlay-text')?.value   || '#ffffff',
+    };
+  }
   function setProgress(frac) {
     const bar = document.getElementById('export-progress-bar');
     if (bar) bar.style.width = `${Math.round(frac * 100)}%`;
@@ -411,6 +419,7 @@ const ExportFfmpeg = (() => {
         width: videoEl.videoWidth, height: videoEl.videoHeight,
         durationSec, trimStart, trimEnd,
         overlayFps: selectedFps(),
+        colors: selectedColors(),
         targetHeight,
         onStatus: setStatus,
         onProgress: setProgress,
@@ -468,6 +477,7 @@ const ExportFfmpeg = (() => {
         width: videoEl.videoWidth, height: videoEl.videoHeight,
         durationSec, trimStart, trimEnd,
         overlayFps: selectedFps(),
+        colors: selectedColors(),
         onStatus: setStatus,
         onProgress: setProgress,
       });

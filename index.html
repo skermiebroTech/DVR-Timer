@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DVR Race Timer</title>
-  <link rel="stylesheet" href="css/styles.css?v=3" />
+  <link rel="stylesheet" href="css/styles.css?v=4" />
 </head>
 <body>
   <div id="app">
@@ -37,7 +37,7 @@
           <div class="video-wrapper">
             <video id="main-video" preload="auto"></video>
             <!-- LiveSplit-style race timer overlay — draggable + resizable -->
-            <div id="time-overlay" class="ls-timer hidden">
+            <div id="time-overlay" class="ls-timer">
               <div class="ls-display">
                 <span id="overlay-time-main" class="ls-main">0:00</span><span id="overlay-time-frac" class="ls-frac">.000</span>
               </div>
@@ -63,9 +63,19 @@
               <option value="90">90 fps</option>
             </select>
             <label class="toggle-label">
-              <input type="checkbox" id="toggle-overlay" />
+              <input type="checkbox" id="toggle-overlay" checked />
               <span>Race Timer Overlay</span>
             </label>
+            <span class="overlay-colors">
+              <label class="color-field" title="Timer accent colour — left bar, glow & best-lap highlights">
+                <input type="color" id="overlay-accent" value="#00e060" />
+                <span>Accent</span>
+              </label>
+              <label class="color-field" title="Timer text colour — the main time digits">
+                <input type="color" id="overlay-text" value="#ffffff" />
+                <span>Text</span>
+              </label>
+            </span>
           </div>
 
           <!-- Scrub bar -->
@@ -221,14 +231,14 @@
        Defines window.FFmpegWASM; the 32 MB core is fetched lazily on first MP4 export. -->
   <script src="vendor/ffmpeg/ffmpeg.js"></script>
 
-  <script src="js/storage.js?v=4"></script>
+  <script src="js/storage.js?v=5"></script>
   <script src="js/laps.js?v=5"></script>
   <script src="js/timeline.js?v=4"></script>
-  <script src="js/video.js?v=4"></script>
+  <script src="js/video.js?v=5"></script>
   <script src="js/export.js?v=4"></script>
   <script src="js/transcode.js?v=4"></script>
-  <script src="js/overlay-render.js?v=4"></script>
-  <script src="js/export-ffmpeg.js?v=5"></script>
-  <script src="js/app.js?v=6"></script>
+  <script src="js/overlay-render.js?v=5"></script>
+  <script src="js/export-ffmpeg.js?v=6"></script>
+  <script src="js/app.js?v=7"></script>
 </body>
 </html>

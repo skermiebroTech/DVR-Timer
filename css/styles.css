@@ -163,17 +163,27 @@ body {
 /* ---------- Video container ---------- */
 .video-container { display: flex; flex-direction: column; gap: 10px; }
 
+/* The wrapper is locked to the loaded video's exact aspect ratio (--va is set
+   from videoWidth/videoHeight on load). With no letterbox bars, the draggable
+   overlay can't be parked over a black margin and then land off-frame in the
+   render — the on-screen frame and the exported frame are the same rectangle.
+   max-width caps the height (height = width / aspect) without reintroducing
+   bars: the box just shrinks while keeping its aspect. */
 .video-wrapper {
   position: relative;
   background: #000;
   border-radius: var(--radius);
   overflow: hidden;
   line-height: 0;
+  aspect-ratio: var(--va, 16 / 9);
+  width: 100%;
+  max-width: calc(var(--player-max-h, 440px) * var(--va, 1.7778));
+  margin-inline: auto;
 }
 
 #main-video {
   width: 100%;
-  max-height: 420px;
+  height: 100%;
   display: block;
   object-fit: contain;
   background: #000;
@@ -181,6 +191,10 @@ body {
 
 /* ---------- LiveSplit-style timer overlay ---------- */
 .ls-timer {
+  /* Customisable via the toolbar colour pickers (also passed to the export
+     renderer so burned-in frames match exactly). */
+  --timer-accent: #00e060;
+  --timer-text:   #ffffff;
   position: absolute;
   top: 12px;
   left: 12px;
@@ -193,7 +207,7 @@ body {
   border-top: 1px solid rgba(255,255,255,0.08);
   border-right: 1px solid rgba(255,255,255,0.08);
   border-bottom: 1px solid rgba(255,255,255,0.08);
-  border-left: 3px solid #00e060;
+  border-left: 3px solid var(--timer-accent);
   box-shadow: 0 4px 24px rgba(0,0,0,0.75), inset 0 1px 0 rgba(255,255,255,0.04);
   border-radius: 0 2px 2px 0;
 }
@@ -211,9 +225,9 @@ body {
 .ls-main {
   font-size: 2.8em;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--timer-text);
   letter-spacing: -0.03em;
-  text-shadow: 0 0 28px rgba(0, 230, 96, 0.18);
+  text-shadow: 0 0 28px color-mix(in srgb, var(--timer-accent) 18%, transparent);
 }
 
 .ls-frac {
@@ -257,22 +271,24 @@ body {
 
 /* Fastest consecutive laps row in the overlay */
 .ls-fastest {
-  border-top: 1px solid rgba(0, 224, 96, 0.25);
+  border-top: 1px solid color-mix(in srgb, var(--timer-accent) 25%, transparent);
   padding: 6px 14px 7px 11px;
   margin-top: 2px;
   font-size: 0.9em;
   font-weight: 700;
-  color: #00e060;
-  text-shadow: 0 0 8px rgba(0, 224, 96, 0.9), 0 0 20px rgba(0, 224, 96, 0.55);
+  color: var(--timer-accent);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--timer-accent) 90%, transparent),
+               0 0 20px color-mix(in srgb, var(--timer-accent) 55%, transparent);
   letter-spacing: -0.01em;
   white-space: nowrap;
 }
 
 /* Fastest laps highlighted in splits list */
-.ls-split-row.ls-split-fastest .ls-split-num { color: rgba(0, 224, 96, 0.7); }
+.ls-split-row.ls-split-fastest .ls-split-num { color: color-mix(in srgb, var(--timer-accent) 70%, transparent); }
 .ls-split-row.ls-split-fastest .ls-split-time {
-  color: #00e060;
-  text-shadow: 0 0 8px rgba(0, 224, 96, 0.85), 0 0 18px rgba(0, 224, 96, 0.45);
+  color: var(--timer-accent);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--timer-accent) 85%, transparent),
+               0 0 18px color-mix(in srgb, var(--timer-accent) 45%, transparent);
 }
 
 /* Resize grip — bottom-right corner triangle */
@@ -315,6 +331,32 @@ body {
 }
 
 .toggle-label input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+
+/* ---------- Overlay colour pickers ---------- */
+.overlay-colors { display: flex; align-items: center; gap: 12px; }
+
+.color-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.color-field input[type=color] {
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-input);
+  cursor: pointer;
+}
+.color-field input[type=color]::-webkit-color-swatch-wrapper { padding: 2px; }
+.color-field input[type=color]::-webkit-color-swatch { border: none; border-radius: 3px; }
+.color-field input[type=color]::-moz-color-swatch { border: none; border-radius: 3px; }
 
 /* ---------- Scrub bar ---------- */
 .scrub-row {

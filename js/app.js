@@ -199,6 +199,34 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-export-timer').addEventListener('click', () => ExportFfmpeg.startTimerOnly());
   document.getElementById('btn-cancel-export').addEventListener('click', () => ExportFfmpeg.cancel());
 
+  // ── Timer overlay colour customiser ───────────────────────
+  // Drives the on-screen overlay via CSS variables; the export renderer reads
+  // the same picker values so burned-in frames match. Choices persist.
+  const overlayEl   = document.getElementById('time-overlay');
+  const accentInput = document.getElementById('overlay-accent');
+  const textInput   = document.getElementById('overlay-text');
+
+  function applyOverlayColors(c) {
+    if (!overlayEl) return;
+    if (c.accent) overlayEl.style.setProperty('--timer-accent', c.accent);
+    if (c.text)   overlayEl.style.setProperty('--timer-text',   c.text);
+  }
+
+  const savedColors = Storage.loadOverlayColors();
+  if (savedColors) {
+    if (savedColors.accent) accentInput.value = savedColors.accent;
+    if (savedColors.text)   textInput.value   = savedColors.text;
+  }
+  applyOverlayColors({ accent: accentInput.value, text: textInput.value });
+
+  function onOverlayColorChange() {
+    const c = { accent: accentInput.value, text: textInput.value };
+    applyOverlayColors(c);
+    Storage.saveOverlayColors(c);
+  }
+  accentInput.addEventListener('input', onOverlayColorChange);
+  textInput.addEventListener('input', onOverlayColorChange);
+
   // ── Add lap button ────────────────────────────────────────
   document.getElementById('btn-add-lap').addEventListener('click', () => {
     Laps.addLap(VideoPlayer.getCurrentTime());

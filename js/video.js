@@ -357,6 +357,15 @@ const VideoPlayer = (() => {
     if (seekCanvas) { seekCanvas.remove(); seekCanvas = null; }
   }
 
+  // Lock the video frame to the source's exact aspect ratio so there are no
+  // letterbox bars for the overlay to be dragged onto (which would then render
+  // off-frame). --va drives both the wrapper's aspect-ratio and its height cap.
+  function applyVideoAspect() {
+    if (!video || !video.videoWidth || !video.videoHeight) return;
+    const wrapper = video.parentElement;
+    if (wrapper) wrapper.style.setProperty('--va', (video.videoWidth / video.videoHeight).toFixed(6));
+  }
+
   function togglePlayPause() {
     if (!video) return;
     if (video.paused) video.play();
@@ -379,8 +388,12 @@ const VideoPlayer = (() => {
         durationEl.textContent = formatTime(video.duration);
       }
       scrubBar.max = SCRUB_STEPS;
+      applyVideoAspect();
       updateTimeDisplays();
     });
+    // Intrinsic dimensions can land after metadata for some streams (e.g. TS via
+    // mpegts.js) — keep the frame aspect in sync when they do.
+    video.addEventListener('resize', applyVideoAspect);
     video.addEventListener('durationchange', () => {
       if (durationEl && isFinite(video.duration)) {
         durationEl.textContent = formatTime(video.duration);
@@ -393,6 +406,7 @@ const VideoPlayer = (() => {
     // it. Setting currentTime here (not on loadedmetadata) guarantees a visible
     // frame — loadedmetadata only means headers parsed, not pixels available.
     video.addEventListener('canplay', () => {
+      applyVideoAspect();
       if (!firstFrameShown) {
         firstFrameShown = true;
         video.currentTime = 0.001;

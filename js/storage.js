@@ -3,6 +3,7 @@
    ============================================================ */
 
 const STORAGE_KEY = 'dvr-race-timer-session';
+const COLORS_KEY  = 'dvr-race-timer-overlay-colors';
 
 const Storage = {
   save(laps) {
@@ -10,6 +11,24 @@ const Storage = {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(laps));
     } catch (e) {
       console.warn('Failed to save session to localStorage:', e);
+    }
+  },
+
+  // Persist the timer overlay colour choices so they survive a reload.
+  saveOverlayColors(colors) {
+    try {
+      localStorage.setItem(COLORS_KEY, JSON.stringify(colors));
+    } catch (e) {
+      console.warn('Failed to save overlay colours to localStorage:', e);
+    }
+  },
+
+  loadOverlayColors() {
+    try {
+      const raw = localStorage.getItem(COLORS_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
     }
   },
 
