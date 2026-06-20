@@ -116,6 +116,8 @@ const VideoPlayer = (() => {
     if (!isScrubbing && scrubBar && dur) {
       scrubBar.value = Math.round((t / dur) * SCRUB_STEPS);
     }
+    // Drive the trim timeline's playhead + progressive thumbnail capture.
+    if (typeof Timeline !== 'undefined') Timeline.onTimeUpdate(t, dur);
   }
 
   // ── rAF loop — 60 fps while playing, stops when paused/ended ─────────────
@@ -503,6 +505,14 @@ const VideoPlayer = (() => {
       case 'L':
         e.preventDefault();
         Laps.addLap(actualTime());
+        break;
+      case '[':
+        e.preventDefault();
+        if (typeof Timeline !== 'undefined') Timeline.setInToCurrent();
+        break;
+      case ']':
+        e.preventDefault();
+        if (typeof Timeline !== 'undefined') Timeline.setOutToCurrent();
         break;
       case 'Delete':
       case 'Backspace':

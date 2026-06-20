@@ -5,6 +5,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   // ── Init sub-modules ──────────────────────────────────────
   VideoPlayer.init();
+  Timeline.init();
   Laps.init(Storage.load());
   // Keep the overlay splits panel in sync with the lap table
   Laps.setOnChange(laps => VideoPlayer.setLapSplits(laps));
@@ -122,6 +123,9 @@ document.addEventListener('DOMContentLoaded', () => {
       VideoPlayer.loadFile(file);
       showPlayer();
     }
+
+    // Build the trim timeline + filmstrip for the freshly loaded clip.
+    Timeline.load(file);
   }
 
   function listenForMovError(file) {
@@ -172,6 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btn-change-video').addEventListener('click', () => {
     Transcoder.destroyActive();
+    Timeline.reset();
     hidePlayer();
     fileInput.value = '';
   });

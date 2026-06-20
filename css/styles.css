@@ -360,6 +360,111 @@ body {
   border: none;
 }
 
+/* ---------- Trim timeline ---------- */
+.timeline { display: flex; flex-direction: column; gap: 6px; }
+
+.timeline-track {
+  position: relative;
+  height: 54px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--border);
+  user-select: none;
+  touch-action: none;
+  cursor: pointer;
+}
+
+/* Filmstrip — equal-width cells, each holds one thumbnail */
+.timeline-strip { position: absolute; inset: 0; display: flex; }
+
+.tl-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  background-color: #14161f;
+  background-size: cover;
+  background-position: center;
+  border-right: 1px solid rgba(0,0,0,.35);
+}
+.tl-cell:last-child { border-right: none; }
+.tl-cell.filled { background-color: transparent; }
+
+/* Dim the trimmed-away regions */
+.tl-shade {
+  position: absolute;
+  top: 0; bottom: 0;
+  background: rgba(8,9,14,.72);
+  pointer-events: none;
+  z-index: 1;
+}
+.tl-shade-left  { left: 0; }
+.tl-shade-right { right: 0; }
+
+/* Accent border around the kept range */
+.tl-region {
+  position: absolute;
+  top: 0; bottom: 0;
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.4);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* In/out handles straddling the boundaries */
+.tl-handle {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 14px;
+  margin-left: -7px;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ew-resize;
+  touch-action: none;
+  z-index: 4;
+}
+.tl-handle span {
+  width: 2px;
+  height: 42%;
+  background: rgba(255,255,255,.85);
+  border-radius: 1px;
+}
+.tl-handle::after {              /* widen the hit target without resizing the bar */
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; left: -6px; right: -6px;
+}
+.tl-handle:hover { background: var(--accent-dark); }
+.tl-handle-left  { border-radius: 4px 0 0 4px; }
+.tl-handle-right { border-radius: 0 4px 4px 0; }
+
+/* Playhead — current position */
+.tl-playhead {
+  position: absolute;
+  top: -1px; bottom: -1px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--red);
+  box-shadow: 0 0 6px rgba(231,76,60,.9);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.timeline-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-dim);
+  flex-wrap: wrap;
+}
+.tl-range-label { font-family: 'Courier New', monospace; color: var(--text); }
+.tl-hint { opacity: .7; }
+#btn-trim-reset { margin-left: auto; }
+#btn-trim-reset:disabled { opacity: .4; cursor: default; }
+
 /* ---------- Controls row ---------- */
 .controls-row {
   display: flex;

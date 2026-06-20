@@ -84,15 +84,17 @@ const ExportFfmpeg = (() => {
     scratch.width = width; scratch.height = height;
     const sctx = scratch.getContext('2d');
 
-    const span = opts.trimSec ? Math.min(opts.durationSec, opts.trimSec) : opts.durationSec;
-    const samples = new Set([0, Math.max(0, span - 0.01)]);
+    // Sample within the exported clip window [trimStart, trimEnd] (absolute file
+    // times) so the crop box fits whatever the overlay shows over that range.
+    const a = opts.trimStart, b = opts.trimEnd;
+    const samples = new Set([a, Math.max(a, b - 0.01)]);
     for (const l of laps) {
       if (l.startTime != null) samples.add(l.startTime + 0.05);
       if (l.endTime   != null) { samples.add(l.endTime - 0.05); samples.add(l.endTime + 0.05); }
     }
     let maxW = 0, maxH = 0;
     for (const t of samples) {
-      if (t < 0 || t > span) continue;
+      if (t < a || t > b) continue;
       sctx.clearRect(0, 0, width, height);
       const r = OverlayRender.drawOverlay(sctx, geom, t, laps, fastestIds, groupSize, fastTotal);
       if (r) { if (r.w > maxW) maxW = r.w; if (r.h > maxH) maxH = r.h; }
@@ -114,7 +116,8 @@ const ExportFfmpeg = (() => {
   // Transparent background; each frame compresses to a couple KB.
   async function writeOverlaySequence(ff, opts, crop, onStatus) {
     const { overlayFps, geom, laps, fastestIds, fastTotal, groupSize } = opts;
-    const span = opts.trimSec ? Math.min(opts.durationSec, opts.trimSec) : opts.durationSec;
+    const span    = opts.spanSec;
+    const startAt = opts.trimStart;   // absolute file time the clip begins at
     const { cropX, cropY, cropW, cropH } = crop;
 
     const canvas = (typeof OffscreenCanvas !== 'undefined')
@@ -129,11 +132,11 @@ const ExportFfmpeg = (() => {
     await ff.createDir('/ov');
     for (let i = 0; i < total; i++) {
       if (cancelled) throw new Error('cancelled');
-      const t = i / overlayFps;
+      // Output frame i maps to absolute file time startAt + i/fps, so lap/race
+      // times stay correct even when the clip starts partway through the file.
+      const t = startAt + i / overlayFps;
       ctx.clearRect(0, 0, cropW, cropH);
-      // Draw the absolutely-positioned box into the crop window. timeOffset is 0:
-      // a full-file export starts at the file's first frame, the same zero the
-      // lap times are measured from.
+      // Draw the absolutely-positioned box into the crop window.
       ctx.save();
       ctx.translate(-cropX, -cropY);
       OverlayRender.drawOverlay(ctx, geom, t, laps, fastestIds, groupSize, fastTotal);
@@ -171,13 +174,18 @@ const ExportFfmpeg = (() => {
    *   targetHeight — null/undefined keeps source resolution; 1080 or 2160 upscales.
    */
   async function run(opts) {
-    const { onStatus, onProgress, durationSec, trimSec } = opts;
-    const spanSec = trimSec ? Math.min(durationSec, trimSec) : durationSec;
+    const { onStatus, onProgress, durationSec } = opts;
+    // Clip window [trimStart, trimEnd] in absolute file seconds. Defaults to the
+    // whole file; trimmed is true when the user pulled either handle in.
+    const trimStart = Math.max(0, opts.trimStart || 0);
+    const trimEnd   = (opts.trimEnd && opts.trimEnd <= durationSec + 0.001) ? opts.trimEnd : durationSec;
+    const spanSec   = Math.max(0.001, trimEnd - trimStart);
+    const trimmed   = trimStart > 0.001 || trimEnd < durationSec - 0.001;
     cancelled = false;
     let overlayCount = 0;
     const ff = await load(onStatus);
 
-    // Progress: ffmpeg reports the encoded media time; divide by known duration.
+    // Progress: ffmpeg reports the encoded media time; divide by the clip span.
     const onLogProgress = ({ time }) => {
       if (time && spanSec) onProgress?.(Math.min(1, (time / 1e6) / spanSec));
     };
@@ -187,9 +195,10 @@ const ExportFfmpeg = (() => {
 
     // Output resolution: keep source, or upscale to 1080p/4K with the overlay
     // re-rendered (not stretched) at that resolution. renderOpts carries the
-    // scaled dimensions + geometry into the overlay renderer.
+    // scaled dimensions + geometry into the overlay renderer, plus the resolved
+    // clip window so the overlay sequence and crop measurement match the cut.
     const { f, outW, outH, geom } = resolveResolution(opts);
-    const renderOpts = { ...opts, width: outW, height: outH, geom };
+    const renderOpts = { ...opts, width: outW, height: outH, geom, trimStart, trimEnd, spanSec };
 
     try {
       const crop = measureCrop(renderOpts);
@@ -215,7 +224,13 @@ const ExportFfmpeg = (() => {
       srcChain.push(`fps=${fps}`);
 
       onStatus?.('Encoding… 0%');
-      const args = ['-i', inputPath];
+      // -ss before -i seeks the source to the in-point (accurate seek: ffmpeg
+      // decodes from the prior keyframe and rebases output to 0). The overlay PNG
+      // input is unaffected and stays aligned: output time τ shows file time
+      // trimStart+τ for both source and overlay. -t caps the duration to the clip.
+      const args = [];
+      if (trimStart > 0.001) args.push('-ss', trimStart.toFixed(3));
+      args.push('-i', inputPath);
       if (crop) {
         args.push(
           '-framerate', String(fps), '-i', '/ov/%06d.png',
@@ -232,7 +247,7 @@ const ExportFfmpeg = (() => {
         '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-crf', '18',
         '-c:a', 'aac', '-b:a', '192k',
         '-r', String(fps),
-        ...(trimSec ? ['-t', String(trimSec)] : []),
+        ...(trimmed ? ['-t', spanSec.toFixed(3)] : []),
         '-movflags', '+faststart',
         'out.mp4',
       );
@@ -297,6 +312,11 @@ const ExportFfmpeg = (() => {
 
     const durationSec = VideoPlayer.getDurationSec?.() || videoEl.duration || 0;
 
+    // Clip trim from the timeline (absolute file seconds). Full range → no cut.
+    const trim = (typeof Timeline !== 'undefined' && Timeline.getTrim) ? Timeline.getTrim() : null;
+    const trimStart = (trim && trim.isTrimmed) ? trim.startSec : 0;
+    const trimEnd   = (trim && trim.isTrimmed) ? trim.endSec   : durationSec;
+
     // Output resolution: 'source' keeps native; 1080/2160 upscale. Never downscale
     // below source — picking a target taller than the source just keeps source.
     const resSel = document.getElementById('export-resolution');
@@ -312,7 +332,7 @@ const ExportFfmpeg = (() => {
       const blob = await run({
         sourceFile, laps, fastestIds, fastTotal, groupSize, geom,
         width: videoEl.videoWidth, height: videoEl.videoHeight,
-        durationSec,
+        durationSec, trimStart, trimEnd,
         overlayFps: 30,
         targetHeight,
         onStatus: setStatus,

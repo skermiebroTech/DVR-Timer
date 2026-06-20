@@ -52,7 +52,7 @@ const ExportVideo = (() => {
     }
   }
 
-  async function fastPath(videoEl, canvas, draw, progressEl, config) {
+  async function fastPath(videoEl, canvas, draw, progressEl, config, stopAt) {
     setStatus('Loading encoder (first time only)…');
     const { Muxer, ArrayBufferTarget } = await import(
       'https://unpkg.com/webm-muxer@5.1.4/build/webm-muxer.mjs'
@@ -123,6 +123,8 @@ const ExportVideo = (() => {
       finishLoop = resolve;
       async function onFrame(_, { mediaTime }) {
         if (stopped) { resolve(); return; }
+        // Reached the clip out-point — stop before encoding past it.
+        if (mediaTime > stopAt) { resolve(); return; }
         draw(mediaTime);
         const vf = new VideoFrame(canvas, { timestamp: Math.round(mediaTime * 1_000_000) });
         try {
@@ -175,7 +177,7 @@ const ExportVideo = (() => {
 
   // ── Slow path: MediaRecorder, 1× realtime fallback ────────────────────────
 
-  function slowPath(videoEl, canvas, draw, progressEl) {
+  function slowPath(videoEl, canvas, draw, progressEl, stopAt) {
     // captureStream(120) auto-captures whenever the canvas changes (up to 120 fps)
     const stream   = canvas.captureStream(120);
     const recorder = new MediaRecorder(stream, { videoBitsPerSecond: 40_000_000 });
@@ -213,6 +215,7 @@ const ExportVideo = (() => {
       recorder.start(500);
 
       function loop() {
+        if (videoEl.currentTime > stopAt) { stopRec(); return; }
         draw(videoEl.currentTime);
         if (videoEl.ended) { stopRec(); return; }
         videoEl.requestVideoFrameCallback
@@ -248,6 +251,14 @@ const ExportVideo = (() => {
     const timeOffset = VideoPlayer.getTimeOffset();
     const { total: fastTotal } = Laps.getFastestGroup();
     const groupSize  = parseInt(document.getElementById('group-size').value, 10) || 3;
+
+    // Clip trim. Only honoured for native playback (player time == file time);
+    // for .ts the player holds a sub-blob window, so trimming there is the
+    // background MP4 export's job (export-ffmpeg.js).
+    const trim     = (typeof Timeline !== 'undefined' && Timeline.getTrim) ? Timeline.getTrim() : null;
+    const applyTrim = !!(trim && trim.isTrimmed && timeOffset === 0);
+    const startAt  = applyTrim ? trim.startSec : 0;
+    const stopAt   = applyTrim ? trim.endSec   : Infinity;
 
     const canvas = document.createElement('canvas');
     canvas.width  = videoEl.videoWidth;
@@ -285,12 +296,12 @@ const ExportVideo = (() => {
     setStatus('Rewinding…');
     videoEl.pause();
 
-    // Assigning currentTime its existing value fires no 'seeked' event, so an
-    // unconditional await would hang forever when the video is already at 0
-    // (e.g. exporting right after load). Only wait when a real seek happens.
-    if (videoEl.currentTime > 0.01) {
+    // Seek to the clip in-point (0 when untrimmed). Assigning currentTime its
+    // existing value fires no 'seeked' event, so an unconditional await would
+    // hang forever — only wait when a real seek happens.
+    if (Math.abs(videoEl.currentTime - startAt) > 0.01) {
       const seeked = new Promise(r => videoEl.addEventListener('seeked', r, { once: true }));
-      videoEl.currentTime = 0;
+      videoEl.currentTime = startAt;
       await seeked;
     }
 
@@ -299,8 +310,8 @@ const ExportVideo = (() => {
 
       const canFast  = window.VideoEncoder && videoEl.requestVideoFrameCallback;
       const fastCfg  = canFast ? await supportedFastConfig(canvas) : null;
-      if (fastCfg) await fastPath(videoEl, canvas, draw, progressEl, fastCfg);
-      else         await slowPath(videoEl, canvas, draw, progressEl);
+      if (fastCfg) await fastPath(videoEl, canvas, draw, progressEl, fastCfg, stopAt);
+      else         await slowPath(videoEl, canvas, draw, progressEl, stopAt);
     } catch (err) {
       setStatus(`Error: ${err.message}`);
       console.error('[ExportVideo]', err);

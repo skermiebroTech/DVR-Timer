@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DVR Race Timer</title>
-  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/styles.css?v=2" />
 </head>
 <body>
   <div id="app">
@@ -70,6 +70,24 @@
             <span id="duration-display" class="time-display">0:00.000</span>
           </div>
 
+          <!-- Trim timeline — thumbnail filmstrip with draggable in/out handles -->
+          <div id="timeline" class="timeline">
+            <div id="timeline-track" class="timeline-track">
+              <div id="timeline-strip" class="timeline-strip"></div>
+              <div id="tl-shade-left"  class="tl-shade tl-shade-left"></div>
+              <div id="tl-shade-right" class="tl-shade tl-shade-right"></div>
+              <div id="tl-region" class="tl-region"></div>
+              <div id="tl-handle-left"  class="tl-handle tl-handle-left"  title="Drag to set clip start ([)"><span></span></div>
+              <div id="tl-handle-right" class="tl-handle tl-handle-right" title="Drag to set clip end (])"><span></span></div>
+              <div id="tl-playhead" class="tl-playhead"></div>
+            </div>
+            <div class="timeline-info">
+              <span id="tl-range-label" class="tl-range-label">Clip: full length</span>
+              <span class="tl-hint">Drag the ends to trim · click to seek</span>
+              <button id="btn-trim-reset" class="btn btn-sm btn-secondary" disabled>Reset trim</button>
+            </div>
+          </div>
+
           <!-- Playback controls -->
           <div class="controls-row">
             <div class="playback-controls">
@@ -113,6 +131,7 @@
             <kbd>←</kbd><kbd>→</kbd> Seek 5s &nbsp;
             <kbd>,</kbd><kbd>.</kbd> Frame step &nbsp;
             <kbd>L</kbd> Add lap &nbsp;
+            <kbd>[</kbd><kbd>]</kbd> Set clip in/out &nbsp;
             <kbd>Del</kbd> Delete selected lap
           </div>
         </div>
@@ -198,6 +217,7 @@
 
   <script src="js/storage.js?v=4"></script>
   <script src="js/laps.js?v=4"></script>
+  <script src="js/timeline.js?v=4"></script>
   <script src="js/video.js?v=4"></script>
   <script src="js/export.js?v=4"></script>
   <script src="js/transcode.js?v=4"></script>
