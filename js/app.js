@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
   VideoPlayer.init();
   Timeline.init();
   Laps.init(Storage.load());
+  DroneDash.init();
   // Keep the overlay splits, timeline markers + header buttons in sync with laps
   Laps.setOnChange(laps => {
     VideoPlayer.setLapSplits(laps);
@@ -34,7 +35,20 @@ document.addEventListener('DOMContentLoaded', () => {
   let tsDuration = null;     // set when a .ts file is loaded; used by seek override
   let currentTsFile = null;  // the .ts currently loaded (null for native / none)
   let tsErrorShown = false;  // guard: show the decode notice only once per load
+  let pendingSessionFile = null; // file whose per-video lap session to activate once duration is known
   const mainVideoEl = document.getElementById('main-video');
+
+  // Laps are stored per video — keyed by file name + duration — so each clip
+  // keeps its own race times. Called as soon as the duration is known (native /
+  // MOV on loadedmetadata; .ts after the PTS duration is parsed), it switches the
+  // active storage key and loads that clip's laps (empty if it's never been seen).
+  function activateSession(file, durationSec) {
+    if (!file || !durationSec || !isFinite(durationSec) || durationSec <= 0) return;
+    const key = Storage.sessionKey(file.name, durationSec);
+    if (Storage.getSessionKey() === key) return;  // already on this clip's session
+    Storage.setSessionKey(key);
+    Laps.setLaps(Storage.load());
+  }
 
   function showPlayer() {
     uploadArea.classList.add('hidden');
@@ -71,8 +85,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!mpegts.ErrorTypes || type === mpegts.ErrorTypes.MEDIA_ERROR) reportTsDecodeError();
   });
 
+  // Native / MOV: the duration is finite here, so load this clip's saved laps.
+  // (.ts reports Infinity and is activated from its parsed PTS duration instead.)
+  mainVideoEl.addEventListener('loadedmetadata', () => {
+    if (pendingSessionFile && isFinite(mainVideoEl.duration) && mainVideoEl.duration > 0) {
+      activateSession(pendingSessionFile, mainVideoEl.duration);
+    }
+  });
+
   function loadVideo(file) {
     if (!file) return;
+
+    // Remember this file so its per-video lap session activates once the
+    // duration is known (see the loadedmetadata listener / the .ts parse below).
+    pendingSessionFile = file;
 
     // Retain the original File so the background MP4 export can mount it directly
     // (WORKERFS) instead of going back through the player.
@@ -115,7 +141,10 @@ document.addEventListener('DOMContentLoaded', () => {
       Transcoder.getTsDuration(file)
         .then(dur => {
           tsDuration = dur;
-          if (dur) VideoPlayer.setDuration(dur);
+          if (dur) {
+            VideoPlayer.setDuration(dur);
+            activateSession(file, dur);  // load this .ts clip's saved laps
+          }
         })
         .catch(() => {});
       // Detect the real frame rate from PTS so frame-stepping moves exactly one
@@ -255,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Clear session ─────────────────────────────────────────
   document.getElementById('btn-clear-session').addEventListener('click', () => {
-    if (confirm('Clear all lap data? This cannot be undone.')) {
+    if (confirm('Clear the lap data for this video? This cannot be undone.')) {
       Storage.clear();
       Laps.setLaps([]);
     }

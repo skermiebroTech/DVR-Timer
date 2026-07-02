@@ -108,7 +108,7 @@ Both burn-in paths share the same renderer (`js/overlay-render.js`) as the on-sc
 
 ## Session persistence
 
-Lap data is automatically saved to `localStorage` after every change. If you close or refresh the page, your laps are restored. Click **Clear Session** to wipe them.
+Lap data is automatically saved to `localStorage` after every change, **per video** — the session is keyed by the uploaded file's name and duration. Re-open the same clip (even after closing or refreshing the page) and its laps come back; open a different clip and you get that clip's laps, or a clean slate if it's new. Browsers can't silently re-open a local file, so after a refresh you re-select the video and its saved laps reload. **Clear Session** wipes the laps for the currently-loaded video only.
 
 ---
 

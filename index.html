@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DVR Race Timer</title>
-  <link rel="stylesheet" href="css/styles.css?v=5" />
+  <link rel="stylesheet" href="css/styles.css?v=6" />
 </head>
 <body>
   <div id="app">
@@ -169,6 +169,10 @@
         <div class="lap-table-wrapper card">
           <div class="lap-table-header">
             <h3>Laps <span id="lap-count" class="lap-count">0</span></h3>
+            <button id="btn-dronedash" class="btn btn-sm btn-secondary"
+                    title="Import official lap times from fpvrebels.com — pick your race &amp; pilot, anchor them to the video">
+              Import from DroneDash
+            </button>
           </div>
 
           <div id="no-laps-msg" class="no-laps-msg">
@@ -212,6 +216,55 @@
     </div>
   </div>
 
+  <!-- DroneDash import modal -->
+  <div id="dd-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="dd-modal-title">
+    <div class="modal modal-wide">
+      <h3 id="dd-modal-title">Import from DroneDash</h3>
+
+      <div class="modal-field">
+        <label for="dd-club">Club</label>
+        <select id="dd-club" class="select-sm dd-select"></select>
+      </div>
+
+      <div class="modal-field">
+        <label for="dd-meeting">Meeting ID <span class="dd-dim">(blank = current meeting)</span></label>
+        <div class="dd-row">
+          <input type="text" id="dd-meeting" placeholder="current" />
+          <button id="dd-load" class="btn btn-sm btn-secondary">Load races</button>
+        </div>
+        <p id="dd-meeting-name" class="dd-meeting-name"></p>
+      </div>
+
+      <div class="modal-field">
+        <label for="dd-race">Race</label>
+        <select id="dd-race" class="select-sm dd-select" disabled></select>
+      </div>
+
+      <div class="modal-field">
+        <label for="dd-pilot">Pilot</label>
+        <select id="dd-pilot" class="select-sm dd-select" disabled></select>
+      </div>
+
+      <div id="dd-preview" class="dd-preview hidden"></div>
+
+      <div class="modal-field">
+        <label>Anchor — current video time: <strong id="dd-video-time">—</strong></label>
+        <label class="dd-radio"><input type="radio" name="dd-anchor" value="start" checked />
+          Video is at the <strong>race start</strong> (start tone)</label>
+        <label class="dd-radio"><input type="radio" name="dd-anchor" value="crossing" />
+          Video is at the <strong>first gate crossing</strong> (end of holeshot)</label>
+        <label class="dd-radio"><input type="checkbox" id="dd-include-holeshot" />
+          Include holeshot as a lap</label>
+      </div>
+
+      <p id="dd-error" class="modal-error hidden"></p>
+      <div class="modal-actions">
+        <button id="dd-import" class="btn btn-primary" disabled>Import laps</button>
+        <button id="dd-cancel" class="btn btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Export progress toast -->
   <div id="export-progress" class="export-progress hidden">
     <div class="export-progress-spinner"></div>
@@ -232,7 +285,7 @@
        Defines window.FFmpegWASM; the 32 MB core is fetched lazily on first MP4 export. -->
   <script src="vendor/ffmpeg/ffmpeg.js"></script>
 
-  <script src="js/storage.js?v=5"></script>
+  <script src="js/storage.js?v=7"></script>
   <script src="js/laps.js?v=5"></script>
   <script src="js/timeline.js?v=5"></script>
   <script src="js/video.js?v=5"></script>
@@ -240,6 +293,7 @@
   <script src="js/transcode.js?v=4"></script>
   <script src="js/overlay-render.js?v=5"></script>
   <script src="js/export-ffmpeg.js?v=6"></script>
-  <script src="js/app.js?v=8"></script>
+  <script src="js/dronedash.js?v=2"></script>
+  <script src="js/app.js?v=10"></script>
 </body>
 </html>
