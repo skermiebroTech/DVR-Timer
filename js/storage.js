@@ -16,6 +16,7 @@
 
 const SESSION_PREFIX = 'dvr-race-timer-laps::';
 const COLORS_KEY     = 'dvr-race-timer-overlay-colors';
+const DD_CLUB_KEY    = 'dvr-race-timer-dronedash-club';
 
 const Storage = (() => {
   let currentKey = null;   // active per-video session key; null until a video loads
@@ -77,6 +78,16 @@ const Storage = (() => {
     }
   }
 
+  // Remember which club's DroneDash server was last used (global, like colours).
+  function saveDroneDashClub(base) {
+    try { localStorage.setItem(DD_CLUB_KEY, base); } catch (e) {}
+  }
+
+  function loadDroneDashClub() {
+    try { return localStorage.getItem(DD_CLUB_KEY); } catch (e) { return null; }
+  }
+
   return { sessionKey, setSessionKey, getSessionKey, save, load, clear,
-           saveOverlayColors, loadOverlayColors };
+           saveOverlayColors, loadOverlayColors,
+           saveDroneDashClub, loadDroneDashClub };
 })();
