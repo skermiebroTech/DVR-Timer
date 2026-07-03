@@ -619,6 +619,13 @@ body {
 }
 .btn-danger:hover { background: rgba(231,76,60,.1); }
 
+.btn-success {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+.btn-success:hover { background: #27ae60; border-color: #27ae60; }
+
 .btn-icon {
   background: var(--bg-input);
   border-color: var(--border);
