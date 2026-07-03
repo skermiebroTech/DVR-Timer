@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
   VideoPlayer.init();
   Timeline.init();
   Laps.init(Storage.load());
+  DroneDash.init();
   // Keep the overlay splits, timeline markers + header buttons in sync with laps
   Laps.setOnChange(laps => {
     VideoPlayer.setLapSplits(laps);

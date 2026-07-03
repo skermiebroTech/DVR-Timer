@@ -823,6 +823,108 @@ body {
 
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
 
+/* ---------- DroneDash import ---------- */
+.lap-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lap-table-header h3 { margin-bottom: 0; }
+
+.modal-wide { width: min(460px, 92vw); }
+
+.dd-dim { color: var(--text-dim); font-weight: 400; }
+
+.dd-meeting-name {
+  font-size: 12px;
+  color: var(--green);
+  margin-top: 6px;
+  min-height: 15px;
+}
+
+.dd-select { width: 100%; }
+.dd-select:disabled { color: var(--text-dim); }
+
+/* Searchable race dropdown */
+.dd-combo { position: relative; }
+
+.dd-combo-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  box-shadow: var(--shadow);
+  z-index: 20;
+}
+
+.dd-combo-row {
+  padding: 6px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.dd-combo-row:last-child { border-bottom: none; }
+.dd-combo-row:hover, .dd-combo-row.active { background: var(--selected-bg); }
+
+.dd-combo-label { display: block; font-size: 13px; }
+
+.dd-combo-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dd-combo-empty {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.dd-radio {
+  display: block !important;
+  font-size: 13px !important;
+  color: var(--text) !important;
+  margin: 6px 0 0 !important;
+  cursor: pointer;
+}
+/* Undo the generic .modal-field input { width:100% } for radios/checkboxes —
+   a full-width radio pushes its dot to the row centre. */
+.dd-radio input {
+  width: auto;
+  margin-right: 7px;
+  vertical-align: -1px;
+}
+
+.dd-preview {
+  max-height: 160px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 8px 10px;
+  margin-bottom: 14px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+.dd-preview-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+.dd-preview-total {
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 5px;
+  color: var(--green);
+}
+
 /* ---------- Export progress toast ---------- */
 .export-progress {
   position: fixed;

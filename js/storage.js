@@ -4,6 +4,7 @@
 
 const STORAGE_KEY = 'dvr-race-timer-session';
 const COLORS_KEY  = 'dvr-race-timer-overlay-colors';
+const DD_CLUB_KEY = 'dvr-race-timer-dronedash-club';
 
 const Storage = {
   save(laps) {
@@ -46,5 +47,14 @@ const Storage = {
 
   clear() {
     localStorage.removeItem(STORAGE_KEY);
+  },
+
+  // Remember which club's DroneDash server was last used (global, like colours).
+  saveDroneDashClub(base) {
+    try { localStorage.setItem(DD_CLUB_KEY, base); } catch (e) {}
+  },
+
+  loadDroneDashClub() {
+    try { return localStorage.getItem(DD_CLUB_KEY); } catch (e) { return null; }
   }
 };
