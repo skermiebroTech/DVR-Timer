@@ -1,7 +1,7 @@
 # DVR Race Timer
 
 A browser-based race timing tool for reviewing race footage and logging lap times. Runs fully static — no server, backend, or login required. Deploy to GitHub Pages and use it anywhere.
-
+[Live Demo](https://skermiebrotech.github.io/DVR-Timer/)
 ---
 
 ## Running locally
