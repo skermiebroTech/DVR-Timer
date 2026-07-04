@@ -113,6 +113,7 @@ const OverlayRender = (() => {
     // match). Accent = left bar / glow / best-lap highlights; text = main digits.
     const accent  = (colors && colors.accent) || '#00e060';
     const textCol = (colors && colors.text)   || '#ffffff';
+    const fontFam = (colors && colors.font)   || `'Courier New', 'Roboto Mono', monospace`;
 
     const raceT = Math.max(0, t - laps[0].startTime);
     const { main, frac } = fmtParts(raceT);
@@ -142,21 +143,21 @@ const OverlayRender = (() => {
     ctx.save();
 
     // Measure box width
-    ctx.font = `bold ${mainFs}px "Courier New",monospace`;
+    ctx.font = `bold ${mainFs}px ${fontFam}`;
     const mainW = ctx.measureText(main).width;
-    ctx.font = `bold ${fracFs}px "Courier New",monospace`;
+    ctx.font = `bold ${fracFs}px ${fontFam}`;
     let boxW = mainW + ctx.measureText(frac).width + padX * 2;
 
     rows.forEach(({ lap, idx, isCurrent }) => {
       const dur = isCurrent ? Math.max(0, t - lap.startTime) : lap.endTime - lap.startTime;
-      ctx.font = `bold ${numFs}px "Courier New",monospace`;
+      ctx.font = `bold ${numFs}px ${fontFam}`;
       const nw = ctx.measureText(`L${idx + 1}`).width;
-      ctx.font = `bold ${splitFs}px "Courier New",monospace`;
+      ctx.font = `bold ${splitFs}px ${fontFam}`;
       const rowW = nw + ctx.measureText(fmtMs(dur)).width + fs * 0.6 + padX * 2;
       if (rowW > boxW) boxW = rowW;
     });
     if (hasFastest) {
-      ctx.font = `bold ${fastFs}px "Courier New",monospace`;
+      ctx.font = `bold ${fastFs}px ${fontFam}`;
       const fw = ctx.measureText(`Best ${groupSize}: ${fmtMs(fastTotal)}`).width + padX * 2;
       if (fw > boxW) boxW = fw;
     }
@@ -181,16 +182,16 @@ const OverlayRender = (() => {
     const baseX = cx + padX;
     let curY = cy + padYT + mainFs * 0.88;
 
-    ctx.font        = `bold ${mainFs}px "Courier New",monospace`;
+    ctx.font        = `bold ${mainFs}px ${fontFam}`;
     ctx.fillStyle   = textCol;
     ctx.shadowColor = hexToRgba(accent, 0.25);
     ctx.shadowBlur  = mainFs * 0.3;
     ctx.fillText(main, baseX, curY);
     ctx.shadowBlur  = 0;
 
-    ctx.font = `bold ${mainFs}px "Courier New",monospace`;
+    ctx.font = `bold ${mainFs}px ${fontFam}`;
     const mainTextW = ctx.measureText(main).width;
-    ctx.font      = `bold ${fracFs}px "Courier New",monospace`;
+    ctx.font      = `bold ${fracFs}px ${fontFam}`;
     ctx.fillStyle = 'rgba(195,210,220,0.70)';
     ctx.fillText(frac, baseX + mainTextW, curY);
 
@@ -208,14 +209,14 @@ const OverlayRender = (() => {
         const isFastest = fastestIds && fastestIds.has(lap.id);
         curY += lineH;
 
-        ctx.font      = `bold ${numFs}px "Courier New",monospace`;
+        ctx.font      = `bold ${numFs}px ${fontFam}`;
         ctx.fillStyle = isFastest ? hexToRgba(accent, 0.7)
                       : isCurrent ? 'rgba(255,225,70,0.65)'
                       : 'rgba(130,148,165,0.65)';
         ctx.fillText(`L${idx + 1}`, baseX, curY);
         const nw = ctx.measureText(`L${idx + 1}`).width;
 
-        ctx.font = `bold ${splitFs}px "Courier New",monospace`;
+        ctx.font = `bold ${splitFs}px ${fontFam}`;
         if (isFastest) {
           ctx.fillStyle   = accent;
           ctx.shadowColor = hexToRgba(accent, 0.85);
@@ -236,7 +237,7 @@ const OverlayRender = (() => {
       ctx.beginPath(); ctx.moveTo(cx, curY); ctx.lineTo(cx + boxW, curY); ctx.stroke();
 
       curY += fastFs * 1.2;
-      ctx.font        = `bold ${fastFs}px "Courier New",monospace`;
+      ctx.font        = `bold ${fastFs}px ${fontFam}`;
       ctx.fillStyle   = accent;
       ctx.shadowColor = hexToRgba(accent, 0.9);
       ctx.shadowBlur  = fastFs * 0.5;

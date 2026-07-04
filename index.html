@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DVR Race Timer</title>
-  <link rel="stylesheet" href="css/styles.css?v=10" />
+  <link rel="stylesheet" href="css/styles.css?v=11" />
 </head>
 <body>
   <div id="app">
@@ -78,6 +78,18 @@
               <label class="color-field" title="Timer text colour — the main time digits">
                 <input type="color" id="overlay-text" value="#ffffff" />
                 <span>Text</span>
+              </label>
+              <label class="color-field font-field" title="Timer font — applies on screen and to burned-in exports">
+                <select id="overlay-font" class="select-sm">
+                  <option value="'Courier New', 'Roboto Mono', monospace" selected>Courier (mono)</option>
+                  <option value="Menlo, Consolas, 'DejaVu Sans Mono', monospace">Menlo (mono)</option>
+                  <option value="'Arial Narrow', Arial, sans-serif">Arial Narrow</option>
+                  <option value="Helvetica, Arial, sans-serif">Helvetica</option>
+                  <option value="Verdana, Geneva, sans-serif">Verdana</option>
+                  <option value="Impact, Haettenschweiler, sans-serif">Impact</option>
+                  <option value="Georgia, 'Times New Roman', serif">Georgia (serif)</option>
+                </select>
+                <span>Font</span>
               </label>
             </span>
           </div>
@@ -302,9 +314,9 @@
   <script src="js/video.js?v=9"></script>
   <script src="js/export.js?v=4"></script>
   <script src="js/transcode.js?v=7"></script>
-  <script src="js/overlay-render.js?v=5"></script>
-  <script src="js/export-ffmpeg.js?v=6"></script>
+  <script src="js/overlay-render.js?v=6"></script>
+  <script src="js/export-ffmpeg.js?v=7"></script>
   <script src="js/dronedash.js?v=4"></script>
-  <script src="js/app.js?v=11"></script>
+  <script src="js/app.js?v=12"></script>
 </body>
 </html>

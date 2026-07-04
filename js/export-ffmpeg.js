@@ -362,6 +362,7 @@ const ExportFfmpeg = (() => {
     return {
       accent: document.getElementById('overlay-accent')?.value || '#00e060',
       text:   document.getElementById('overlay-text')?.value   || '#ffffff',
+      font:   document.getElementById('overlay-font')?.value    || `'Courier New', 'Roboto Mono', monospace`,
     };
   }
   function setProgress(frac) {

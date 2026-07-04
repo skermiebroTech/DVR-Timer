@@ -254,27 +254,31 @@ document.addEventListener('DOMContentLoaded', () => {
   const overlayEl   = document.getElementById('time-overlay');
   const accentInput = document.getElementById('overlay-accent');
   const textInput   = document.getElementById('overlay-text');
+  const fontInput   = document.getElementById('overlay-font');
 
   function applyOverlayColors(c) {
     if (!overlayEl) return;
     if (c.accent) overlayEl.style.setProperty('--timer-accent', c.accent);
     if (c.text)   overlayEl.style.setProperty('--timer-text',   c.text);
+    if (c.font)   overlayEl.style.setProperty('--timer-font',    c.font);
   }
 
   const savedColors = Storage.loadOverlayColors();
   if (savedColors) {
     if (savedColors.accent) accentInput.value = savedColors.accent;
     if (savedColors.text)   textInput.value   = savedColors.text;
+    if (savedColors.font)   fontInput.value   = savedColors.font;
   }
-  applyOverlayColors({ accent: accentInput.value, text: textInput.value });
+  applyOverlayColors({ accent: accentInput.value, text: textInput.value, font: fontInput.value });
 
   function onOverlayColorChange() {
-    const c = { accent: accentInput.value, text: textInput.value };
+    const c = { accent: accentInput.value, text: textInput.value, font: fontInput.value };
     applyOverlayColors(c);
     Storage.saveOverlayColors(c);
   }
   accentInput.addEventListener('input', onOverlayColorChange);
   textInput.addEventListener('input', onOverlayColorChange);
+  fontInput.addEventListener('change', onOverlayColorChange);
 
   // ── Add lap button ────────────────────────────────────────
   document.getElementById('btn-add-lap').addEventListener('click', () => {

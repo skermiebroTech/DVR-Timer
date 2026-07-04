@@ -195,13 +195,14 @@ body {
      renderer so burned-in frames match exactly). */
   --timer-accent: #00e060;
   --timer-text:   #ffffff;
+  --timer-font:   'Courier New', 'Roboto Mono', monospace;
   position: absolute;
   top: 12px;
   left: 12px;
   z-index: 5;
   cursor: grab;
   user-select: none;
-  font-family: 'Courier New', 'Roboto Mono', monospace;
+  font-family: var(--timer-font);
   font-size: 14px;           /* scale anchor — all em values inside use this */
   background: rgba(6, 7, 10, 0.90);
   border-top: 1px solid rgba(255,255,255,0.08);
