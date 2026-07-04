@@ -1,8 +1,21 @@
-# Vendored ffmpeg.wasm
+# Vendored libraries
+
+## mp4box.js
+
+`mp4box/mp4box.all.min.js` — `mp4box@0.5.3` `dist/mp4box.all.min.js`. Lazy-loaded
+by `js/export-fast.js` to demux MP4/MOV sources for the hardware-accelerated
+(WebCodecs) export path; `.ts` sources are demuxed by export-fast's own parser.
+
+```bash
+curl -sSL -o vendor/mp4box/mp4box.all.min.js https://unpkg.com/mp4box@0.5.3/dist/mp4box.all.min.js
+```
+
+## ffmpeg.wasm
 
 Self-hosted so the app stays static, offline-capable, and same-origin (ffmpeg.wasm
 spawns an internal Worker, which can't be constructed from a cross-origin CDN URL).
-Used only by the **Export MP4 (background)** feature (`js/export-ffmpeg.js`).
+Used by the **Export MP4 (background)** feature (`js/export-ffmpeg.js`): as the
+mux/audio step of the fast WebCodecs path, and as the full encoder fallback.
 
 | File | Source | Notes |
 |------|--------|-------|

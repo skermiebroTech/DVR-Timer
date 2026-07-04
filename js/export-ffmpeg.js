@@ -338,6 +338,7 @@ const ExportFfmpeg = (() => {
   function cancel() {
     if (!running) return;
     cancelled = true;
+    if (typeof ExportFast !== 'undefined') ExportFast.cancel();
     // terminate() hard-aborts an in-flight exec; the instance is then dead.
     try { ffmpeg?.terminate(); } catch (_) {}
     ffmpeg = null;
@@ -415,7 +416,7 @@ const ExportFfmpeg = (() => {
     setProgress(0);
 
     try {
-      const blob = await run({
+      const jobOpts = {
         sourceFile, laps, fastestIds, fastTotal, groupSize, geom,
         width: videoEl.videoWidth, height: videoEl.videoHeight,
         durationSec, trimStart, trimEnd,
@@ -424,7 +425,21 @@ const ExportFfmpeg = (() => {
         targetHeight,
         onStatus: setStatus,
         onProgress: setProgress,
-      });
+      };
+      // Hardware-accelerated WebCodecs path first (typically 10×+ faster);
+      // any failure falls back to the proven ffmpeg-only encoder below.
+      let blob;
+      try {
+        blob = await ExportFast.run(jobOpts);
+      } catch (err) {
+        if (cancelled) {
+          blob = null;
+        } else {
+          console.warn('[ExportFast] falling back to ffmpeg encoder:', err);
+          setStatus('Hardware encoder unavailable — using compatible encoder…');
+          blob = await run(jobOpts);
+        }
+      }
       if (blob) {
         setStatus('Done — downloading…');
         triggerDownload(blob, `${sourceBaseName() || 'race'}-overlay.mp4`);
@@ -500,5 +515,6 @@ const ExportFfmpeg = (() => {
     }
   }
 
-  return { start, startTimerOnly, cancel, setSource, sourceBaseName, run, runTimerOnly, load };
+  return { start, startTimerOnly, cancel, setSource, sourceBaseName, run, runTimerOnly, load,
+           resolveResolution };
 })();
