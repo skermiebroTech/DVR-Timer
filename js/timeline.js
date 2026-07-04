@@ -88,16 +88,45 @@ const Timeline = (() => {
     }
   }
 
-  // Draw a video element's current frame into one strip cell as a JPEG data URL.
-  function drawCell(cell, vEl) {
-    if (!vEl || !vEl.videoWidth) return;
+  // Draw one frame into a strip cell as a JPEG data URL. `src` is anything
+  // drawImage accepts: a <video> (native/live capture) or an ImageBitmap (the
+  // .ts WebCodecs keyframe path) — dimensions read from whichever it carries.
+  function drawCell(cell, src) {
+    const sw = src && (src.videoWidth || src.width);
+    const sh = src && (src.videoHeight || src.height);
+    if (!sw || !sh) return;
     try {
-      ensureCanvas(vEl.videoWidth, vEl.videoHeight);
-      thumbCtx.drawImage(vEl, 0, 0, thumbCanvas.width, thumbCanvas.height);
+      ensureCanvas(sw, sh);
+      thumbCtx.drawImage(src, 0, 0, thumbCanvas.width, thumbCanvas.height);
       cell.el.style.backgroundImage = `url("${thumbCanvas.toDataURL('image/jpeg', 0.6)}")`;
       cell.el.classList.add('filled');
       cell.filled = true;
     } catch (_) { /* drawImage throws if the frame isn't decodable yet — skip */ }
+  }
+
+  // Fill the whole strip up front for a .ts file by decoding the keyframe at
+  // each cell's position with WebCodecs — the same mechanism as the live scrub
+  // preview, so the filmstrip looks the same and appears immediately instead of
+  // only filling in as the user plays past each region. Falls back to
+  // progressive mode if WebCodecs can't decode the stream.
+  async function generateThumbsTs(token) {
+    for (let i = 0; i < slots.length; i++) {
+      if (token !== genToken) return;              // superseded by a newer load
+      const cell = slots[i];
+      if (cell.filled) continue;
+      const frac = (i + 0.5) / slots.length;
+      let bmp = null;
+      try { bmp = await ScrubPreview.decodeKeyframeBitmap(frac); } catch (_) {}
+      if (token !== genToken) { if (bmp) bmp.close(); return; }
+      if (bmp) {
+        drawCell(cell, bmp);
+        bmp.close();
+      } else if (i === 0) {
+        // First cell failed to decode → give up and let the live player fill in.
+        mode = 'progressive';
+        return;
+      }
+    }
   }
 
   function waitEvent(el, name, timeoutMs) {
@@ -254,13 +283,42 @@ const Timeline = (() => {
     seekFrac(which === 'left' ? trimStart : trimEnd);
   }
 
-  // Clicking the strip (anywhere but a handle) seeks there.
+  // Pressing the strip (anywhere but a handle) scrubs: the playhead follows
+  // the pointer while held, and the seek commits on release. Native video
+  // seeks live on every move; .ts shows WebCodecs keyframe previews during
+  // the drag (ScrubPreview) since per-move player rebuilds are hopeless.
+  function trackScrubTo(f) {
+    if (playheadEl) playheadEl.style.left = (f * 100) + '%';
+    const d = durationProvider();
+    if (!d) return;
+    if (typeof Transcoder !== 'undefined' && Transcoder.isTsActive()) {
+      if (typeof VideoPlayer !== 'undefined') VideoPlayer.previewTimeDisplay(f * d);
+      if (typeof ScrubPreview !== 'undefined') ScrubPreview.preview(f);
+    } else {
+      seekFrac(f);
+    }
+  }
+
   function onTrackSeek(e) {
     if (drag) return;
     if (e.target.closest && e.target.closest('.tl-handle')) return;
-    const f = fracFromClientX(e.clientX);
-    if (playheadEl) playheadEl.style.left = (f * 100) + '%';
-    seekFrac(f);
+    e.preventDefault();
+
+    if (typeof Transcoder !== 'undefined' && Transcoder.isTsActive() &&
+        typeof ScrubPreview !== 'undefined') {
+      ScrubPreview.begin();
+    }
+    trackScrubTo(fracFromClientX(e.clientX));
+
+    const onMove = (ev) => trackScrubTo(fracFromClientX(ev.clientX));
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', (ev) => {
+      window.removeEventListener('pointermove', onMove);
+      if (typeof ScrubPreview !== 'undefined') ScrubPreview.end();
+      // Commit the precise seek where the pointer was released. (Native video
+      // already live-seeked on every move — one more is harmless and exact.)
+      seekFrac(fracFromClientX(ev.clientX));
+    }, { once: true });
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
@@ -329,7 +387,13 @@ const Timeline = (() => {
     renderMarkers();
     const isTs = (typeof Transcoder !== 'undefined' && Transcoder.isTsFile && Transcoder.isTsFile(file));
     if (isTs) {
-      mode = 'progressive';           // offscreen decode unavailable for .ts
+      // Decode a keyframe per cell via WebCodecs (same path as the scrub
+      // preview) so the strip fills up front. captureProgressive stays wired as
+      // the fallback if WebCodecs is unavailable or the stream won't decode.
+      mode = 'progressive';
+      if (typeof ScrubPreview !== 'undefined' && ScrubPreview.supported()) {
+        generateThumbsTs(token);
+      }
     } else {
       mode = 'native';
       generateThumbsNative(file, token);

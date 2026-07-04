@@ -30,21 +30,29 @@ const Transcoder = (() => {
   let tsBlobUrl     = null;
   let tsVideoEl     = null;
   let tsSeekBusy    = false;  // guard against re-entrant seeks
+  let tsSeekToken   = 0;      // bumped per seek/load; stale landing loops bail out
   let tsFirstPTS    = null;   // first PTS of the whole file (90 kHz), cached
 
-  // HDZero records at ~50 Mbps. At that bitrate Chrome's MSE SourceBuffer
-  // fills up in ~3 s. Keep the forward buffer very small and clean up
-  // backward data aggressively so we never hit the hard cap.
+  // HDZero records at up to ~50 Mbps, and Chrome's MSE SourceBuffer holds
+  // ~150 MB — so the buffer window must stay bounded. But demuxing that
+  // bitrate is real CPU work: keep it OFF the main thread (worker) and in
+  // batched appends (stash buffer), or every buffer refill becomes a
+  // main-thread burst that competes with 90 fps decode and stutters playback
+  // on slower machines. Window sizing: ≤12 s ahead + ≤6 s behind ≈ 112 MB
+  // worst-case at 50 Mbps — inside the quota with headroom. The 12/6 refill
+  // cycle also fires half as often as the previous 8/4, with twice the
+  // runway when it does.
   const MPEGTS_CONFIG = {
-    enableWorker: false,
+    enableWorker: true,        // demux in a Web Worker, not the UI thread
     seekType: 'range',
     accurateSeek: false,       // true causes extra buffering; not needed here
-    lazyLoadMaxDuration: 8,    // buffer 8 s ahead (~50 MB at 50 Mbps)
-    lazyLoadRecoverDuration: 4,
+    lazyLoadMaxDuration: 12,   // buffer 12 s ahead (~75 MB at 50 Mbps)
+    lazyLoadRecoverDuration: 6,
     autoCleanupSourceBuffer: true,
-    autoCleanupMaxBackwardDuration: 8,
+    autoCleanupMaxBackwardDuration: 6,
     autoCleanupMinBackwardDuration: 3,
-    enableStashBuffer: false,  // disable stash to reduce peak memory
+    enableStashBuffer: true,   // batch demux output into fewer, larger appends
+    stashInitialSize: 512 * 1024,
   };
 
   let tsErrorCb = null;
@@ -108,9 +116,11 @@ const Transcoder = (() => {
    * @returns {number} startTime — provisional offset; refined async via onOffset
    */
   function seekTsTo(targetTime, totalDuration, onReady, onOffset) {
-    if (!tsFile || !tsVideoEl) return targetTime;
-    if (tsSeekBusy) return targetTime;
+    // null = seek not performed (caller must not touch the time offset)
+    if (!tsFile || !tsVideoEl) return null;
+    if (tsSeekBusy) return null;
     tsSeekBusy = true;
+    const token = ++tsSeekToken;   // invalidates any older seek's landing loop
 
     if (activePlayer) {
       try { activePlayer.destroy(); } catch (_) {}
@@ -138,8 +148,10 @@ const Transcoder = (() => {
     // Report the corrected offset for the time display as soon as it's known.
     if (onOffset) offsetPromise.then(off => onOffset(off));
 
-    // Clear the busy guard on canplay, with a timeout fallback so a seek that
-    // never reaches canplay (e.g. targeting EOF) can't deadlock all future seeks.
+    // Clear the busy guard once the new player is ready. Registered on both
+    // loadeddata and canplay (whichever fires first), with a timeout fallback
+    // so a seek that never becomes playable (e.g. targeting EOF) can't
+    // deadlock all future seeks.
     let settled = false;
     const finish = () => {
       if (settled) return;
@@ -150,17 +162,45 @@ const Transcoder = (() => {
       // matches the requested time — otherwise every seek lands at a different
       // keyframe before the mark, making lap positions drift.
       offsetPromise.then(off => {
+        if (token !== tsSeekToken) return;   // superseded by a newer seek/load
         const within = Math.max(0, targetTime - off);
-        if (within > 0.02) {
-          // Hide the hold-over frame only once the precise frame is painted.
-          tsVideoEl.addEventListener('seeked', () => { if (onReady) onReady(); }, { once: true });
-          try { tsVideoEl.currentTime = within; }
-          catch (_) { if (onReady) onReady(); }
-        } else if (onReady) {
-          onReady();
-        }
+        if (within <= 0.02) { if (onReady) onReady(); return; }
+
+        // Land the precise frame — and *verify* it stuck. mpegts.js has a
+        // stuck-playback watchdog ("Playback seems stuck at 0, seek to …")
+        // that can race us and yank currentTime back to the slice's first
+        // frame, and its seeking hook clamps seeks outside the buffered
+        // range. Re-apply on every 'seeked' until we're within tolerance,
+        // with a poll fallback in case 'seeked' is dropped/throttled.
+        // Bounded tries so an unreachable position (e.g. below the slice's
+        // first frame) settles at the clamp instead of looping.
+        let tries = 0;
+        let done = false;
+        const landed = () => {
+          if (done) return;
+          done = true;
+          tsVideoEl.removeEventListener('seeked', onSeeked);
+          clearInterval(poll);
+          if (onReady) onReady();
+        };
+        const apply = () => {
+          try { tsVideoEl.currentTime = within; } catch (_) { landed(); }
+        };
+        const onTarget = () => Math.abs(tsVideoEl.currentTime - within) <= 0.05;
+        const onSeeked = () => {
+          if (token !== tsSeekToken) { landed(); return; }
+          if (!onTarget() && tries++ < 5) apply();
+          else landed();
+        };
+        tsVideoEl.addEventListener('seeked', onSeeked);
+        const poll = setInterval(() => {
+          if (token !== tsSeekToken || onTarget() || tries++ >= 5) landed();
+          else if (!tsVideoEl.seeking) apply();
+        }, 500);
+        apply();
       });
     };
+    tsVideoEl.addEventListener('loadeddata', finish, { once: true });
     tsVideoEl.addEventListener('canplay', finish, { once: true });
     setTimeout(finish, 5000);
 
@@ -176,6 +216,7 @@ const Transcoder = (() => {
     tsFile     = null;
     tsVideoEl  = null;
     tsSeekBusy = false;
+    tsSeekToken++;   // kill any in-flight landing loop from a previous seek
     tsFirstPTS = null;
   }
 
@@ -430,10 +471,117 @@ const Transcoder = (() => {
     return { pts, streamId, rai };
   }
 
+  // ── Scrub keyframe extraction (WebCodecs preview) ─────────
+
+  // Window sizing: the read must span at least one GOP to guarantee a keyframe
+  // (HDZero ≈ 50 Mbps with ~1 s GOPs ≈ 6.3 MB), plus the keyframe itself.
+  const PREVIEW_READ_BYTES   = 8 * 1024 * 1024;
+  const PREVIEW_EXTEND_BYTES = 4 * 1024 * 1024;
+
+  /** Build the WebCodecs codec string (avc1.PPCCLL) from the SPS NAL inside an
+   *  Annex B stream. HDZero (and TS video generally) repeats SPS/PPS before
+   *  every keyframe, so the access unit is self-contained. Null if no SPS. */
+  function h264CodecString(es) {
+    for (let i = 0; i + 5 < es.length; i++) {
+      if (es[i] !== 0 || es[i + 1] !== 0) continue;
+      let nal = -1;
+      if (es[i + 2] === 1) nal = i + 3;
+      else if (es[i + 2] === 0 && es[i + 3] === 1) nal = i + 4;
+      if (nal === -1) continue;
+      if ((es[nal] & 0x1F) === 7) {   // SPS: profile, constraint flags, level
+        const hex = (b) => b.toString(16).padStart(2, '0');
+        return `avc1.${hex(es[nal + 1])}${hex(es[nal + 2])}${hex(es[nal + 3])}`;
+      }
+      i = nal;   // jump past this start code
+    }
+    return null;
+  }
+
+  /**
+   * Extract the first video keyframe access unit at/after `fraction` of the
+   * file as an Annex B byte stream, for realtime scrub preview via WebCodecs.
+   * One bounded read (+ small extensions if the frame straddles the window) —
+   * no player, no MSE. Returns { data, codec, time } or null.
+   */
+  async function extractKeyframeAt(fraction) {
+    if (!tsFile) return null;
+    const f = Math.max(0, Math.min(1, fraction));
+    const aligned = Math.floor((f * tsFile.size) / TS_PACKET) * TS_PACKET;
+    let buf = new Uint8Array(await tsFile.slice(aligned, aligned + PREVIEW_READ_BYTES).arrayBuffer());
+    const sync = findSyncOffset(buf);
+    if (sync === -1) return null;
+
+    // 1. First video keyframe packet (payload start + random-access indicator).
+    let kfOffset = -1, pid = -1, pts = null;
+    for (let o = sync; o + TS_PACKET <= buf.length; o += TS_PACKET) {
+      const r = extractPTS(buf, o);
+      if (r !== null && r.rai === 1 && r.streamId >= 0xE0 && r.streamId <= 0xEF) {
+        kfOffset = o;
+        pid = ((buf[o + 1] & 0x1F) << 8) | buf[o + 2];
+        pts = r.pts;
+        break;
+      }
+    }
+    if (kfOffset === -1) return null;
+
+    // 2. Collect the ES payload of this PID from the keyframe's PES start up
+    //    to the next payload_unit_start on the same PID (= one access unit).
+    const chunks = [];
+    let scanPos = kfOffset;
+    let done = false;
+    let extensions = 0;
+    while (!done) {
+      for (; scanPos + TS_PACKET <= buf.length; scanPos += TS_PACKET) {
+        if (buf[scanPos] !== 0x47) { done = true; break; }   // lost sync — stop
+        const pPid = ((buf[scanPos + 1] & 0x1F) << 8) | buf[scanPos + 2];
+        if (pPid !== pid) continue;
+        const pusi = (buf[scanPos + 1] & 0x40) !== 0;
+        if (pusi && scanPos !== kfOffset) { done = true; break; }
+        const afc = (buf[scanPos + 3] >> 4) & 0x03;
+        if (afc === 0x00 || afc === 0x02) continue;          // no payload
+        let payloadStart = scanPos + 4;
+        if (afc === 0x03) payloadStart = scanPos + 5 + buf[scanPos + 4];
+        let from = payloadStart;
+        if (pusi) {
+          // Strip the PES header: 9 fixed bytes + PES_header_data_length.
+          from = payloadStart + 9 + buf[payloadStart + 8];
+        }
+        if (from < scanPos + TS_PACKET) chunks.push(buf.subarray(from, scanPos + TS_PACKET));
+      }
+      if (!done) {
+        // Frame straddles the window — extend the read (bounded).
+        const end = aligned + buf.length;
+        if (extensions++ >= 2 || end >= tsFile.size) break;
+        const more = new Uint8Array(await tsFile.slice(end, end + PREVIEW_EXTEND_BYTES).arrayBuffer());
+        const merged = new Uint8Array(buf.length + more.length);
+        merged.set(buf); merged.set(more, buf.length);
+        buf = merged;
+      }
+    }
+
+    let total = 0;
+    chunks.forEach(c => { total += c.length; });
+    if (!total) return null;
+    const data = new Uint8Array(total);
+    let w = 0;
+    chunks.forEach(c => { data.set(c, w); w += c.length; });
+
+    // Real elapsed time of this keyframe (for the time readout during scrub).
+    let time = null;
+    const firstPTS = await getFileFirstPTS();
+    if (firstPTS != null && pts != null) {
+      time = (pts - firstPTS) / PTS_HZ;
+      if (time < 0) time += PTS_ROLLOVER;
+    }
+
+    return { data, codec: h264CodecString(data), time };
+  }
+
   // ── Format detection ──────────────────────────────────────
 
   function isTsFile(file)  { return /\.(ts|m2ts|mts)$/i.test(file.name); }
   function isMovFile(file) { return /\.mov$/i.test(file.name); }
 
-  return { loadTsFile, seekTsTo, isTsActive, destroyActive, isTsFile, isMovFile, getTsDuration, getFrameDuration, onTsError };
+  return { loadTsFile, seekTsTo, isTsActive, destroyActive, isTsFile, isMovFile,
+           getTsDuration, getFrameDuration, extractKeyframeAt, onTsError };
 })();

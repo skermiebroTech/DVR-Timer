@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DVR Race Timer</title>
-  <link rel="stylesheet" href="css/styles.css?v=9" />
+  <link rel="stylesheet" href="css/styles.css?v=10" />
 </head>
 <body>
   <div id="app">
@@ -66,6 +66,10 @@
               <input type="checkbox" id="toggle-overlay" checked />
               <span>Race Timer Overlay</span>
             </label>
+            <label class="toggle-label" title="Filter constant hiss & rumble out of the HDZero audio during playback (does not affect exports)">
+              <input type="checkbox" id="toggle-denoise" />
+              <span>Reduce Audio Noise</span>
+            </label>
             <span class="overlay-colors">
               <label class="color-field" title="Timer accent colour — left bar, glow & best-lap highlights">
                 <input type="color" id="overlay-accent" value="#00e060" />
@@ -78,10 +82,10 @@
             </span>
           </div>
 
-          <!-- Scrub bar -->
-          <div class="scrub-row">
-            <span id="current-time-display" class="time-display">0:00.000</span>
-            <input type="range" id="scrub-bar" class="scrub-bar" min="0" max="1000" value="0" step="1" aria-label="Seek video" />
+          <!-- Current time / duration readout (scrub on the timeline below) -->
+          <div class="time-readout">
+            <span id="current-time-display" class="time-display time-current">0:00.000</span>
+            <span class="time-readout-sep">/</span>
             <span id="duration-display" class="time-display">0:00.000</span>
           </div>
 
@@ -107,20 +111,20 @@
           <!-- Playback controls -->
           <div class="controls-row">
             <div class="playback-controls">
-              <button id="btn-prev-frame" class="btn btn-icon" title="Previous frame (,)" aria-label="Previous frame">
+              <button id="btn-prev-frame" class="btn btn-icon" title="Previous frame (←)" aria-label="Previous frame">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
               </button>
-              <button id="btn-seek-back" class="btn btn-icon" title="Seek back 5s (←)" aria-label="Seek back 5 seconds">
+              <button id="btn-seek-back" class="btn btn-icon" title="Seek back 5s (,)" aria-label="Seek back 5 seconds">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6 8.5 6V6l-8.5 6z"/></svg>
               </button>
               <button id="btn-play-pause" class="btn btn-icon btn-play" title="Play/Pause (Space)" aria-label="Play or pause">
                 <svg id="icon-play" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
                 <svg id="icon-pause" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="hidden" aria-hidden="true"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
               </button>
-              <button id="btn-seek-forward" class="btn btn-icon" title="Seek forward 5s (→)" aria-label="Seek forward 5 seconds">
+              <button id="btn-seek-forward" class="btn btn-icon" title="Seek forward 5s (.)" aria-label="Seek forward 5 seconds">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
               </button>
-              <button id="btn-next-frame" class="btn btn-icon" title="Next frame (.)" aria-label="Next frame">
+              <button id="btn-next-frame" class="btn btn-icon" title="Next frame (→)" aria-label="Next frame">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
               </button>
             </div>
@@ -144,8 +148,8 @@
           <!-- Keyboard shortcut hint -->
           <div class="shortcut-hint">
             <kbd>Space</kbd> Play/Pause &nbsp;
-            <kbd>←</kbd><kbd>→</kbd> Seek 5s &nbsp;
-            <kbd>,</kbd><kbd>.</kbd> Frame step &nbsp;
+            <kbd>←</kbd><kbd>→</kbd> Frame step &nbsp;
+            <kbd>,</kbd><kbd>.</kbd> Seek 5s &nbsp;
             <kbd>L</kbd> Add lap &nbsp;
             <kbd>[</kbd><kbd>]</kbd> Set clip in/out &nbsp;
             <kbd>Del</kbd> Delete selected lap
@@ -292,13 +296,15 @@
 
   <script src="js/storage.js?v=6"></script>
   <script src="js/laps.js?v=5"></script>
-  <script src="js/timeline.js?v=5"></script>
-  <script src="js/video.js?v=5"></script>
+  <script src="js/timeline.js?v=7"></script>
+  <script src="js/scrub-preview.js?v=3"></script>
+  <script src="js/audio-denoise.js?v=1"></script>
+  <script src="js/video.js?v=9"></script>
   <script src="js/export.js?v=4"></script>
-  <script src="js/transcode.js?v=4"></script>
+  <script src="js/transcode.js?v=7"></script>
   <script src="js/overlay-render.js?v=5"></script>
   <script src="js/export-ffmpeg.js?v=6"></script>
   <script src="js/dronedash.js?v=4"></script>
-  <script src="js/app.js?v=9"></script>
+  <script src="js/app.js?v=11"></script>
 </body>
 </html>

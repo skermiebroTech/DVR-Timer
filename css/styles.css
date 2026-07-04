@@ -358,11 +358,11 @@ body {
 .color-field input[type=color]::-webkit-color-swatch { border: none; border-radius: 3px; }
 .color-field input[type=color]::-moz-color-swatch { border: none; border-radius: 3px; }
 
-/* ---------- Scrub bar ---------- */
-.scrub-row {
+/* ---------- Time readout ---------- */
+.time-readout {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: baseline;
+  gap: 6px;
 }
 
 .time-display {
@@ -370,38 +370,14 @@ body {
   font-size: 13px;
   color: var(--text-dim);
   white-space: nowrap;
-  min-width: 70px;
 }
 
-.scrub-bar {
-  flex: 1;
-  -webkit-appearance: none;
-  appearance: none;
-  height: 6px;
-  background: var(--border);
-  border-radius: 3px;
-  outline: none;
-  cursor: pointer;
+.time-current {
+  color: var(--text);
+  font-size: 15px;
 }
 
-.scrub-bar::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--accent);
-  cursor: pointer;
-  box-shadow: 0 0 0 2px rgba(79,142,247,.3);
-}
-
-.scrub-bar::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--accent);
-  cursor: pointer;
-  border: none;
-}
+.time-readout-sep { color: var(--text-dim); }
 
 /* ---------- Trim timeline ---------- */
 .timeline { display: flex; flex-direction: column; gap: 6px; }

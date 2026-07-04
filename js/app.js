@@ -104,6 +104,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // (WORKERFS) instead of going back through the player.
     ExportFfmpeg.setSource(file);
 
+    // Scrub previews from the previous file (frames, codec) are now invalid.
+    if (typeof ScrubPreview !== 'undefined') ScrubPreview.reset();
+
     if (Transcoder.isTsFile(file)) {
       // No Media Source Extensions → mpegts.js can't run at all (e.g. iOS Safari).
       if (!window.mpegts || !mpegts.isSupported()) {
@@ -125,6 +128,18 @@ document.addEventListener('DOMContentLoaded', () => {
       // returns the real start time and we store it as a timeOffset so
       // actualTime() = video.currentTime + offset = correct race time.
       VideoPlayer.setSeekOverride((t) => {
+        // Fast path: if the target maps into the current sub-blob's buffered
+        // range, jump directly — instant, frame-exact, no player rebuild (and
+        // none of the rebuild's async races). Covers arrow-key ±5 s hops and
+        // frame steps, which usually stay inside the ~8 s buffer window.
+        const sub = t - VideoPlayer.getTimeOffset();
+        const buf = mainVideoEl.buffered;
+        for (let i = 0; i < buf.length; i++) {
+          if (sub >= buf.start(i) && sub <= buf.end(i) - 0.05) {
+            mainVideoEl.currentTime = sub;
+            return;
+          }
+        }
         VideoPlayer.showSeekCanvas();
         // startTime is a provisional constant-bitrate estimate so the display
         // isn't blank while the slice loads; onOffset replaces it with the exact
@@ -135,6 +150,9 @@ document.addEventListener('DOMContentLoaded', () => {
           () => { VideoPlayer.hideSeekCanvas(); },
           (realOffset) => { VideoPlayer.setTimeOffset(realOffset); }
         );
+        // null = the seek was dropped (rebuild already in flight) — leave the
+        // offset alone or the display would show a position we never went to.
+        if (startTime == null) { VideoPlayer.hideSeekCanvas(); return; }
         VideoPlayer.setTimeOffset(startTime);
       });
       // Parse duration from binary PTS — mpegts.js always reports Infinity.

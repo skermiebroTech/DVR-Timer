@@ -20,16 +20,13 @@
 const VideoPlayer = (() => {
   const ASSUMED_FPS = 30;           // fallback frame rate until real fps is detected
   const SEEK_STEP   = 5;            // seconds for left/right arrow seek
-  const SCRUB_STEPS = 1000;         // resolution of the scrub bar
 
   let video = null;
-  let scrubBar = null;
   let currentTimeDisplay = null;
   let durationDisplay = null;
   let overlayEl = null;
   let overlayMainEl = null;
   let overlayFracEl = null;
-  let isScrubbing = false;
   let firstFrameShown = false;
   let parsedDuration = null;
   let lapSplits = [];        // mirror of Laps data for overlay rendering
@@ -113,9 +110,6 @@ const VideoPlayer = (() => {
     if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(t);
     setOverlayTime(t);
     tickSplits(t);
-    if (!isScrubbing && scrubBar && dur) {
-      scrubBar.value = Math.round((t / dur) * SCRUB_STEPS);
-    }
     // Drive the trim timeline's playhead + progressive thumbnail capture.
     if (typeof Timeline !== 'undefined') Timeline.onTimeUpdate(t, dur);
   }
@@ -317,11 +311,18 @@ const VideoPlayer = (() => {
   function stepFrame(direction) {
     if (!video) return;
     video.pause();
+    const target = video.currentTime + direction * currentFrameDuration();
+    // A TS sub-blob only has data from its slice point onward — mpegts.js
+    // clamps seeks below the buffered start, so a backward step there silently
+    // does nothing. Route it through the full seek path (real file time) so
+    // the slice is rebuilt further back and the step actually lands.
+    if (direction < 0 && seekOverride && video.buffered.length &&
+        target < video.buffered.start(0) - 1e-4) {
+      seekTo(Math.max(0, actualTime() + direction * currentFrameDuration()));
+      return;
+    }
     // Step within the current sub-blob (video.currentTime only, no offset needed)
-    video.currentTime = Math.max(0, Math.min(
-      video.duration || Infinity,
-      video.currentTime + direction * currentFrameDuration()
-    ));
+    video.currentTime = Math.max(0, Math.min(video.duration || Infinity, target));
   }
 
   function seekTo(seconds) {
@@ -336,10 +337,20 @@ const VideoPlayer = (() => {
   // immediately even while paused — updateTimeDisplays reads timeOffset live.
   function setTimeOffset(offset) { timeOffset = offset; updateTimeDisplays(); }
 
+  // Show a target time in the readouts without seeking — used while scrubbing
+  // a .ts, where the actual seek is deferred to release.
+  function previewTimeDisplay(t) {
+    if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(t);
+    setOverlayTime(t);
+  }
+
   // Capture the current video frame into a canvas overlay so the old frame
   // stays visible while the mpegts.js player is being rebuilt for a TS seek.
   function showSeekCanvas() {
     if (!video || !video.videoWidth || seekCanvas) return;
+    // A scrub preview frame is already covering the video and is closer to the
+    // seek target than the stale pre-drag frame — leave it in place instead.
+    if (typeof ScrubPreview !== 'undefined' && ScrubPreview.isVisible()) return;
     const wrapper = video.parentElement;
     if (!wrapper) return;
     seekCanvas = document.createElement('canvas');
@@ -355,6 +366,8 @@ const VideoPlayer = (() => {
 
   function hideSeekCanvas() {
     if (seekCanvas) { seekCanvas.remove(); seekCanvas = null; }
+    // The seek that just landed also supersedes any scrub-preview frame.
+    if (typeof ScrubPreview !== 'undefined') ScrubPreview.hide();
   }
 
   // Lock the video frame to the source's exact aspect ratio so there are no
@@ -374,7 +387,6 @@ const VideoPlayer = (() => {
 
   function init() {
     video              = document.getElementById('main-video');
-    scrubBar           = document.getElementById('scrub-bar');
     currentTimeDisplay = document.getElementById('current-time-display');
     const durationEl   = document.getElementById('duration-display');
     overlayEl          = document.getElementById('time-overlay');
@@ -387,7 +399,6 @@ const VideoPlayer = (() => {
       if (durationEl && isFinite(video.duration)) {
         durationEl.textContent = formatTime(video.duration);
       }
-      scrubBar.max = SCRUB_STEPS;
       applyVideoAspect();
       updateTimeDisplays();
     });
@@ -430,36 +441,8 @@ const VideoPlayer = (() => {
       updateTimeDisplays();
     });
 
-    // Scrub bar interaction.
-    // For native video: seek on every input event (smooth live scrub).
-    // For TS files (seekOverride set): just update the time display during drag
-    // and commit the seek only on release — otherwise every drag pixel destroys
-    // and recreates the mpegts.js player causing a continuous black flash.
-    scrubBar.addEventListener('mousedown', () => { isScrubbing = true; });
-    scrubBar.addEventListener('touchstart', () => { isScrubbing = true; }, { passive: true });
-    scrubBar.addEventListener('input', () => {
-      const dur = effectiveDuration();
-      if (!dur) return;
-      const t = (scrubBar.value / SCRUB_STEPS) * dur;
-      if (seekOverride) {
-        // Preview the target time in the display without rebuilding the player.
-        if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(t);
-        setOverlayTime(t);
-      } else {
-        video.currentTime = t;
-      }
-    });
-
-    function commitScrub() {
-      isScrubbing = false;
-      if (!seekOverride) return; // native video was already seeked on input
-      const dur = effectiveDuration();
-      if (!dur) return;
-      const t = (scrubBar.value / SCRUB_STEPS) * dur;
-      seekOverride(t);
-    }
-    scrubBar.addEventListener('mouseup',  commitScrub);
-    scrubBar.addEventListener('touchend', commitScrub);
+    // (Scrubbing lives on the trim timeline — Timeline.onTrackSeek drives live
+    // WebCodecs previews for .ts and direct seeks for native video.)
 
     // Button controls
     document.getElementById('btn-play-pause').addEventListener('click', togglePlayPause);
@@ -483,6 +466,12 @@ const VideoPlayer = (() => {
       }
     });
 
+    // Audio noise-reduction toggle
+    const denoiseToggle = document.getElementById('toggle-denoise');
+    if (denoiseToggle && typeof AudioDenoise !== 'undefined') {
+      denoiseToggle.addEventListener('change', (e) => AudioDenoise.setEnabled(e.target.checked));
+    }
+
     // Keyboard shortcuts (only when not focused on an input)
     document.addEventListener('keydown', handleKeydown);
 
@@ -501,19 +490,19 @@ const VideoPlayer = (() => {
         break;
       case 'ArrowLeft':
         e.preventDefault();
-        seekTo(actualTime() - SEEK_STEP);
+        stepFrame(-1);
         break;
       case 'ArrowRight':
         e.preventDefault();
-        seekTo(actualTime() + SEEK_STEP);
+        stepFrame(1);
         break;
       case ',':
         e.preventDefault();
-        stepFrame(-1);
+        seekTo(actualTime() - SEEK_STEP);
         break;
       case '.':
         e.preventDefault();
-        stepFrame(1);
+        seekTo(actualTime() + SEEK_STEP);
         break;
       case 'l':
       case 'L':
@@ -544,7 +533,6 @@ const VideoPlayer = (() => {
     frameDurationLocked = false;
     frameSamples    = [];
     stopFrameSampler();
-    scrubBar.value  = 0;
     const durationEl = document.getElementById('duration-display');
     if (durationEl) durationEl.textContent = '--:--.---';
     if (currentTimeDisplay) currentTimeDisplay.textContent = '0:00.000';
@@ -564,7 +552,6 @@ const VideoPlayer = (() => {
     objectUrl = URL.createObjectURL(file);
     video.src = objectUrl;
     video.load();
-    scrubBar.value = 0;
     if (currentTimeDisplay) currentTimeDisplay.textContent = '0:00.000';
     if (overlayMainEl) overlayMainEl.textContent = '0:00';
     if (overlayFracEl) overlayFracEl.textContent = '.000';
@@ -575,7 +562,7 @@ const VideoPlayer = (() => {
   }
 
   // Called by app.js with the PTS-parsed duration for .ts files so the
-  // scrub bar and display work correctly when video.duration is Infinity.
+  // time readout and timeline work correctly when video.duration is Infinity.
   function setDuration(seconds) {
     parsedDuration = seconds;
     const durationEl = document.getElementById('duration-display');
@@ -631,6 +618,6 @@ const VideoPlayer = (() => {
 
   return { init, loadFile, prepareForLoad, setDuration, setSeekOverride, setTimeOffset,
            setFrameDuration, seekTo, togglePlayPause, stepFrame, getCurrentTime,
-           showSeekCanvas, hideSeekCanvas, setLapSplits, setFastestIds,
+           showSeekCanvas, hideSeekCanvas, previewTimeDisplay, setLapSplits, setFastestIds,
            getFastestIds, getTimeOffset, getDurationSec: effectiveDuration };
 })();
