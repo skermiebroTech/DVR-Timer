@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DVR Race Timer</title>
-  <link rel="stylesheet" href="css/styles.css?v=11" />
+  <link rel="stylesheet" href="css/styles.css?v=12" />
 </head>
 <body>
   <div id="app">
@@ -16,6 +16,7 @@
         <button id="btn-export-json" class="btn btn-secondary" title="Export laps as JSON">Export JSON</button>
         <button id="btn-export-csv" class="btn btn-secondary" title="Export laps as CSV">Export CSV</button>
         <button id="btn-clear-session" class="btn btn-danger" title="Clear all lap data">Clear Session</button>
+        <button id="btn-help" class="btn btn-secondary btn-help" title="Replay the tutorial" aria-label="Replay the tutorial">?</button>
       </div>
     </header>
 
@@ -286,6 +287,22 @@
     </div>
   </div>
 
+  <!-- First-run tutorial (replayable via the ? header button) -->
+  <div id="tutorial-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
+    <div class="modal tutorial-modal">
+      <button id="tutorial-skip" class="tutorial-skip" title="Close the tutorial">Skip</button>
+      <h3 id="tutorial-title"></h3>
+      <p id="tutorial-body" class="tutorial-body"></p>
+      <div class="tutorial-footer">
+        <div id="tutorial-dots" class="tutorial-dots"></div>
+        <div class="tutorial-nav">
+          <button id="tutorial-back" class="btn btn-sm btn-secondary">Back</button>
+          <button id="tutorial-next" class="btn btn-sm btn-primary">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Export progress toast -->
   <div id="export-progress" class="export-progress hidden">
     <div class="export-progress-spinner"></div>
@@ -306,17 +323,18 @@
        Defines window.FFmpegWASM; the 32 MB core is fetched lazily on first MP4 export. -->
   <script src="vendor/ffmpeg/ffmpeg.js"></script>
 
-  <script src="js/storage.js?v=6"></script>
+  <script src="js/storage.js?v=7"></script>
   <script src="js/laps.js?v=5"></script>
   <script src="js/timeline.js?v=7"></script>
   <script src="js/scrub-preview.js?v=3"></script>
   <script src="js/audio-denoise.js?v=1"></script>
-  <script src="js/video.js?v=9"></script>
+  <script src="js/video.js?v=10"></script>
   <script src="js/export.js?v=4"></script>
   <script src="js/transcode.js?v=7"></script>
   <script src="js/overlay-render.js?v=6"></script>
   <script src="js/export-ffmpeg.js?v=7"></script>
-  <script src="js/dronedash.js?v=4"></script>
-  <script src="js/app.js?v=12"></script>
+  <script src="js/dronedash.js?v=5"></script>
+  <script src="js/tutorial.js?v=1"></script>
+  <script src="js/app.js?v=13"></script>
 </body>
 </html>

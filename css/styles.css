@@ -909,6 +909,84 @@ body {
   color: var(--green);
 }
 
+/* Fastest consecutive-laps highlight in the import preview — same green
+   treatment as the lap table's .fastest rows. */
+.dd-preview-row.dd-fastest {
+  background: var(--fastest-bg);
+  box-shadow: inset 3px 0 0 var(--fastest-border);
+  padding-left: 7px;
+}
+.dd-preview-fastest { color: var(--fastest-border); }
+
+/* ---------- Help button + tutorial ---------- */
+.btn-help {
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.tutorial-modal {
+  width: min(430px, 92vw);
+  position: relative;
+}
+
+.tutorial-skip {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-family: inherit;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.tutorial-skip:hover { background: var(--border); color: var(--text); }
+
+.tutorial-body {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-dim);
+  min-height: 88px;
+}
+.tutorial-body strong { color: var(--text); }
+.tutorial-body kbd {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.tutorial-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.tutorial-dots { display: flex; gap: 6px; }
+
+.tutorial-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  cursor: pointer;
+}
+.tutorial-dot:hover { background: var(--text-dim); }
+.tutorial-dot.active { background: var(--accent); }
+
+.tutorial-nav { display: flex; gap: 8px; }
+
 /* ---------- Export progress toast ---------- */
 .export-progress {
   position: fixed;

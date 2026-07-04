@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   Timeline.init();
   Laps.init(Storage.load());
   DroneDash.init();
+  Tutorial.init();   // auto-opens on the very first visit; ? button replays it
   // Keep the overlay splits, timeline markers + header buttons in sync with laps
   Laps.setOnChange(laps => {
     VideoPlayer.setLapSplits(laps);

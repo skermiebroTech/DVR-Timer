@@ -423,10 +423,30 @@ const DroneDash = (() => {
       return;
     }
 
+    // Highlight the fastest consecutive-laps window using the event's official
+    // ConsecWindow (falling back to 3). Summed in integer ms — like the import
+    // itself — so the highlighted run agrees with the official leaderboard
+    // (which excludes the holeshot).
+    const n = race && race.ConsecWindow >= 1 ? race.ConsecWindow : 3;
+    const lapMs = pilot.Laps.map(d => Math.round(d * 1000));
+    let fastStart = -1;
+    let fastTotalMs = Infinity;
+    for (let i = 0; i + n <= lapMs.length; i++) {
+      const sum = lapMs.slice(i, i + n).reduce((a, b) => a + b, 0);
+      if (sum < fastTotalMs) { fastTotalMs = sum; fastStart = i; }
+    }
+
     const rows = [`<div class="dd-preview-row"><span>Holeshot</span><span>${fmt(pilot.Holeshot)}</span></div>`];
     pilot.Laps.forEach((d, i) => {
-      rows.push(`<div class="dd-preview-row"><span>Lap ${i + 1}</span><span>${fmt(d)}</span></div>`);
+      const fast = fastStart !== -1 && i >= fastStart && i < fastStart + n;
+      rows.push(`<div class="dd-preview-row${fast ? ' dd-fastest' : ''}"><span>Lap ${i + 1}</span><span>${fmt(d)}</span></div>`);
     });
+    if (fastStart !== -1) {
+      const label = n === 1
+        ? `Fastest lap (lap ${fastStart + 1})`
+        : `Fastest ${n} consec (laps ${fastStart + 1}–${fastStart + n})`;
+      rows.push(`<div class="dd-preview-row dd-preview-total dd-preview-fastest"><span>${label}</span><span>${fmt(fastTotalMs / 1000)}</span></div>`);
+    }
     const totalMs = crossingOffsetsMs(pilot)[pilot.Laps.length];
     rows.push(`<div class="dd-preview-row dd-preview-total"><span>Total (incl. holeshot)</span><span>${fmt(totalMs / 1000)}</span></div>`);
     box.innerHTML = rows.join('');

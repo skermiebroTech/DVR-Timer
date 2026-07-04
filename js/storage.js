@@ -17,6 +17,7 @@
 const SESSION_PREFIX = 'dvr-race-timer-laps::';
 const COLORS_KEY     = 'dvr-race-timer-overlay-colors';
 const DD_CLUB_KEY    = 'dvr-race-timer-dronedash-club';
+const TUTORIAL_KEY   = 'dvr-race-timer-tutorial-seen';
 
 const Storage = (() => {
   let currentKey = null;   // active per-video session key; null until a video loads
@@ -87,7 +88,18 @@ const Storage = (() => {
     try { return localStorage.getItem(DD_CLUB_KEY); } catch (e) { return null; }
   }
 
+  // First-run tutorial flag (global). If localStorage is unavailable, report
+  // "seen" so the tour can't nag on every single load.
+  function markTutorialSeen() {
+    try { localStorage.setItem(TUTORIAL_KEY, '1'); } catch (e) {}
+  }
+
+  function isTutorialSeen() {
+    try { return localStorage.getItem(TUTORIAL_KEY) === '1'; } catch (e) { return true; }
+  }
+
   return { sessionKey, setSessionKey, getSessionKey, save, load, clear,
            saveOverlayColors, loadOverlayColors,
-           saveDroneDashClub, loadDroneDashClub };
+           saveDroneDashClub, loadDroneDashClub,
+           markTutorialSeen, isTutorialSeen };
 })();

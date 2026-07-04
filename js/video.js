@@ -481,6 +481,9 @@ const VideoPlayer = (() => {
   function handleKeydown(e) {
     const tag = document.activeElement.tagName.toLowerCase();
     if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+    // While any modal (edit lap / club import / tutorial) is open, the keys
+    // belong to it — never add laps or seek behind the dialog.
+    if (document.querySelector('.modal-overlay:not(.hidden)')) return;
     if (!video || video.src === '' || video.readyState === 0) return;
 
     switch (e.key) {
