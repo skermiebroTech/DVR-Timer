@@ -119,6 +119,14 @@ const EmbedTheme = (() => {
     } else {
       startSystemFollow();         // no explicit mode → track the OS until told otherwise
     }
+
+    // Handshake: ask the host page for its theme. Hosts that listen (e.g. a
+    // platform's theme-toggle.js) reply with a dvr-theme message; hosts that
+    // don't simply ignore this. Lets a host sync themes with a generic
+    // listener instead of tracking iframe load timing itself.
+    if (window.parent !== window) {
+      try { window.parent.postMessage({ type: 'dvr-theme-request' }, '*'); } catch (_) {}
+    }
   }
 
   function startSystemFollow() {
