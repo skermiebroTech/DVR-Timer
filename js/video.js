@@ -51,6 +51,11 @@ const VideoPlayer = (() => {
   // Canvas overlay painted before a TS player rebuild so the old frame stays
   // visible during the black gap while the new player loads.
   let seekCanvas = null;
+  // While a TS seek rebuilds the player, the transient state reads ~3 s before
+  // the target (the keyframe pre-roll slice). Holding the displayed time at the
+  // seek target keeps the readouts and timeline playhead from skipping back and
+  // then re-landing.
+  let seekHoldTime = null;
   // Blob URL for the currently loaded native file, revoked on the next load
   // so swapping (multi-GB) videos doesn't leak memory.
   let objectUrl = null;
@@ -105,7 +110,7 @@ const VideoPlayer = (() => {
   }
 
   function updateTimeDisplays() {
-    const t   = actualTime();
+    const t   = seekHoldTime != null ? seekHoldTime : actualTime();
     const dur = effectiveDuration();
     if (currentTimeDisplay) currentTimeDisplay.textContent = formatTime(t);
     setOverlayTime(t);
@@ -337,6 +342,15 @@ const VideoPlayer = (() => {
   // immediately even while paused — updateTimeDisplays reads timeOffset live.
   function setTimeOffset(offset) { timeOffset = offset; updateTimeDisplays(); }
 
+  // Freeze all time displays (readout, overlay, timeline playhead) at the seek
+  // target while a TS player rebuild is in flight; released when the seek lands.
+  function beginSeekHold(t) { seekHoldTime = t; updateTimeDisplays(); }
+  function endSeekHold() {
+    if (seekHoldTime == null) return;
+    seekHoldTime = null;
+    updateTimeDisplays();
+  }
+
   // Show a target time in the readouts without seeking — used while scrubbing
   // a .ts, where the actual seek is deferred to release.
   function previewTimeDisplay(t) {
@@ -424,6 +438,7 @@ const VideoPlayer = (() => {
       }
     });
     video.addEventListener('play', () => {
+      endSeekHold();   // playback tracks real time again — never leave a stale hold
       updatePlayPauseIcon();
       startRaf();
       startFrameSampler();
@@ -532,6 +547,7 @@ const VideoPlayer = (() => {
     firstFrameShown = false;
     parsedDuration  = null;
     timeOffset      = 0;
+    seekHoldTime    = null;
     frameDuration   = null;   // re-detect for the new file
     frameDurationLocked = false;
     frameSamples    = [];
@@ -547,6 +563,7 @@ const VideoPlayer = (() => {
     firstFrameShown = false;
     parsedDuration  = null;
     timeOffset      = 0;
+    seekHoldTime    = null;
     frameDuration   = null;   // re-detect for the new file
     frameDurationLocked = false;
     frameSamples    = [];
@@ -621,6 +638,7 @@ const VideoPlayer = (() => {
 
   return { init, loadFile, prepareForLoad, setDuration, setSeekOverride, setTimeOffset,
            setFrameDuration, seekTo, togglePlayPause, stepFrame, getCurrentTime,
-           showSeekCanvas, hideSeekCanvas, previewTimeDisplay, setLapSplits, setFastestIds,
+           showSeekCanvas, hideSeekCanvas, beginSeekHold, endSeekHold,
+           previewTimeDisplay, setLapSplits, setFastestIds,
            getFastestIds, getTimeOffset, getDurationSec: effectiveDuration };
 })();

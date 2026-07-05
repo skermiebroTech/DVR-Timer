@@ -148,12 +148,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const startTime = Transcoder.seekTsTo(
           t,
           tsDuration || 0,
-          () => { VideoPlayer.hideSeekCanvas(); },
+          () => { VideoPlayer.hideSeekCanvas(); VideoPlayer.endSeekHold(); },
           (realOffset) => { VideoPlayer.setTimeOffset(realOffset); }
         );
         // null = the seek was dropped (rebuild already in flight) — leave the
         // offset alone or the display would show a position we never went to.
         if (startTime == null) { VideoPlayer.hideSeekCanvas(); return; }
+        // Hold every readout (time, overlay, playhead) at the target while the
+        // player rebuilds — the slice starts ~3 s early for a keyframe, and
+        // without the hold everything visibly skips back and re-lands.
+        VideoPlayer.beginSeekHold(t);
         VideoPlayer.setTimeOffset(startTime);
       });
       // Parse duration from binary PTS — mpegts.js always reports Infinity.
