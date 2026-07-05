@@ -32,6 +32,63 @@ That's it — the app is entirely static.
 
 ---
 
+## Embedding in another site
+
+Because the app is static and deployed to Pages, embed it in an `<iframe>` and
+it always tracks this repo — every push redeploys Pages, no build step on the
+host site:
+
+```html
+<iframe src="https://skermiebrotech.github.io/DVR-Timer/"
+        style="width:100%;height:90vh;border:0" allow="fullscreen"
+        title="DVR Race Timer"></iframe>
+```
+
+File drag-and-drop, WebCodecs/ffmpeg export and downloads all work inside the
+frame because the app still runs on its own origin. Note lap sessions
+(localStorage) are stored per embedding origin, separate from the standalone
+site.
+
+### Matching the host site's theme
+
+Add `?embed=<palette>` to the src and the app maps that host's colours onto its
+own UI (`js/embed-theme.js`). A palette for **FPV Rebels** (`embed=fpvrebels`)
+ships built in — for other sites, add an entry to `PALETTES`. Only the app
+chrome is themed; the race-timer overlay keeps its own customisable colours.
+
+To make the embed follow the host's **dark/light toggle live**, the host page
+posts the mode to the frame (a cross-origin iframe can't read the parent's
+theme itself). For an AUFPV-platform site, whose toggle sets
+`<html data-theme="dark|light">`:
+
+```html
+<iframe id="dvr"
+        src="https://skermiebrotech.github.io/DVR-Timer/?embed=fpvrebels"
+        style="width:100%;height:90vh;border:0" allow="fullscreen"
+        title="DVR Race Timer"></iframe>
+<script>
+  (function () {
+    var f = document.getElementById('dvr');
+    var origin = 'https://skermiebrotech.github.io';
+    function mode() {
+      return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    }
+    function send() { f.contentWindow.postMessage({ type: 'dvr-theme', mode: mode() }, origin); }
+    f.addEventListener('load', send);                       // initial sync
+    new MutationObserver(send).observe(document.documentElement,
+      { attributes: true, attributeFilter: ['data-theme'] }); // follow the toggle
+  })();
+</script>
+```
+
+Without the script the embed still themes to FPV Rebels colours and follows the
+viewer's OS light/dark preference; the script is only needed to mirror the
+site's manual toggle. Pass `&mode=dark` (or `light`) in the src to fix the
+first paint before the load message arrives, and `&embedOrigin=<host>` to accept
+theme messages only from that origin.
+
+---
+
 ## Supported video formats
 
 Playback depends on your browser's built-in codec support:
