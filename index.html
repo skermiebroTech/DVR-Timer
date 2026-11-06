@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DVR Race Timer</title>
-  <link rel="stylesheet" href="css/styles.css?v=12" />
+  <link rel="stylesheet" href="css/styles.css?v=13" />
   <!-- Themes the app to a host site's palette when embedded (?embed=…). Loaded
        in <head> so the first paint is already themed — no colour flash. -->
   <script src="js/embed-theme.js?v=2"></script>
@@ -31,8 +31,8 @@
           <div class="upload-inner">
             <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m8 13 4-4 4 4"/><path d="M12 9v8"/></svg>
             <p>Drop a video file here or <label for="file-input" class="file-label">browse</label></p>
-            <p class="upload-hint">Plays natively: MP4, WebM, MKV, AVI, MOV (H.264)<br>Demuxed in browser: TS / M2TS / MTS (HDZero)</p>
-            <input type="file" id="file-input" accept="video/mp4,video/webm,video/x-matroska,video/quicktime,video/x-msvideo,video/mp2t,.mp4,.webm,.mkv,.mov,.avi,.ts,.m2ts,.mts" />
+            <p class="upload-hint">Plays natively: MP4, WebM, MKV, AVI, MOV (H.264)<br>Demuxed in browser: TS / M2TS / MTS (HDZero)<br>Drop several files at once to batch convert them all (60 fps MP4)</p>
+            <input type="file" id="file-input" multiple accept="video/mp4,video/webm,video/x-matroska,video/quicktime,video/x-msvideo,video/mp2t,.mp4,.webm,.mkv,.mov,.avi,.ts,.m2ts,.mts" />
           </div>
         </div>
 
@@ -306,6 +306,29 @@
     </div>
   </div>
 
+  <!-- Batch frame-rate conversion modal -->
+  <div id="batch-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="batch-modal-title">
+    <div class="modal modal-wide">
+      <h3 id="batch-modal-title">Batch Convert</h3>
+      <p class="batch-intro">Each file converts to a new MP4 at the selected frame rate and downloads automatically. The source files do not change.</p>
+      <div class="modal-field batch-fps-row">
+        <label for="batch-fps">Output frame rate</label>
+        <select id="batch-fps" class="select-sm">
+          <option value="30">30 fps</option>
+          <option value="60" selected>60 fps</option>
+          <option value="90">90 fps</option>
+        </select>
+      </div>
+      <div id="batch-list" class="batch-list"></div>
+      <p id="batch-summary" class="batch-summary"></p>
+      <div class="modal-actions">
+        <button id="batch-start" class="btn btn-primary">Convert all</button>
+        <button id="batch-cancel" class="btn btn-danger hidden">Cancel</button>
+        <button id="batch-close" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Export progress toast -->
   <div id="export-progress" class="export-progress hidden">
     <div class="export-progress-spinner"></div>
@@ -337,8 +360,9 @@
   <script src="js/overlay-render.js?v=6"></script>
   <script src="js/export-fast.js?v=1"></script>
   <script src="js/export-ffmpeg.js?v=8"></script>
+  <script src="js/batch-convert.js?v=1"></script>
   <script src="js/dronedash.js?v=5"></script>
   <script src="js/tutorial.js?v=1"></script>
-  <script src="js/app.js?v=14"></script>
+  <script src="js/app.js?v=15"></script>
 </body>
 </html>

@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   Timeline.init();
   Laps.init(Storage.load());
   DroneDash.init();
+  BatchConvert.init();
   Tutorial.init();   // auto-opens on the very first visit; ? button replays it
   // Keep the overlay splits, timeline markers + header buttons in sync with laps
   Laps.setOnChange(laps => {
@@ -225,8 +226,17 @@ document.addEventListener('DOMContentLoaded', () => {
     videoEl.addEventListener('canplay', onCanPlay);
   }
 
+  // One file → load it in the player. Several files → batch 60 fps conversion.
+  function handleFiles(fileList) {
+    const files = Array.from(fileList || []);
+    if (files.length === 0) return;
+    if (files.length > 1) BatchConvert.open(files);
+    else loadVideo(files[0]);
+  }
+
   fileInput.addEventListener('change', (e) => {
-    if (e.target.files[0]) loadVideo(e.target.files[0]);
+    handleFiles(e.target.files);
+    e.target.value = '';  // allow re-picking the same file(s)
   });
 
   uploadArea.addEventListener('dragover', (e) => {
@@ -237,8 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
   uploadArea.addEventListener('drop', (e) => {
     e.preventDefault();
     uploadArea.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file) loadVideo(file);
+    handleFiles(e.dataTransfer.files);
   });
   uploadArea.addEventListener('click', () => fileInput.click());
 
